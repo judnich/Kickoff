@@ -1,0 +1,117 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Crust %28Template Library%29">
+      <UniqueIdentifier>{db217fca-d175-400a-807b-baef1eee0b7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="External %283rd Party Libraries%29">
+      <UniqueIdentifier>{85efd601-8abc-421c-a23a-93af82c023c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Kickoff Source">
+      <UniqueIdentifier>{efd7352c-ef60-4521-92ec-b3145996ba07}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="source\crust\FormattedText.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+    <ClCompile Include="source\kickoff\Kickoff.cpp">
+      <Filter>Kickoff Source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\kickoff\Precomp.cpp">
+      <Filter>Kickoff Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Crust\Util.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Kickoff\TaskDatabase.cpp">
+      <Filter>Kickoff Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Crust\Error.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Crust\CommandArgs.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Kickoff\TaskServer.cpp">
+      <Filter>Kickoff Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Crust\PooledString.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Crust\PooledBlob.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\External\MurmurHash2_64.cpp">
+      <Filter>External %283rd Party Libraries%29</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Crust\BlobStream.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Kickoff\TaskWorker.cpp">
+      <Filter>Kickoff Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Crust\Process.cpp">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\crust\Algebraic.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="source\crust\Array.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="source\crust\FormattedText.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="source\kickoff\Precomp.h">
+      <Filter>Kickoff Source</Filter>
+    </ClInclude>
+    <ClInclude Include="source\external\rlutil.h">
+      <Filter>External %283rd Party Libraries%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Crust\Util.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Kickoff\TaskDatabase.h">
+      <Filter>Kickoff Source</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Crust\Error.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Crust\CommandArgs.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Kickoff\TaskServer.h">
+      <Filter>Kickoff Source</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\External\zmq.hpp">
+      <Filter>External %283rd Party Libraries%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Crust\PooledString.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Crust\PooledBlob.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\External\MurmurHash2_64.h">
+      <Filter>External %283rd Party Libraries%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Crust\BlobStream.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Kickoff\TaskWorker.h">
+      <Filter>Kickoff Source</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Crust\Process.h">
+      <Filter>Crust %28Template Library%29</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+    <None Include="Source\Crust\README.md">
+      <Filter>Crust %28Template Library%29</Filter>
+    </None>
+  </ItemGroup>
+</Project>
