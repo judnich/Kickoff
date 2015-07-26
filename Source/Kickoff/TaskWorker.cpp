@@ -4,6 +4,7 @@
 #include "Crust/Error.h"
 #include <thread>
 #include <chrono>
+#include "External\rlutil.h"
 
 static const int MAX_POLL_INTERVAL_SECONDS = 60;
 
@@ -23,6 +24,12 @@ void TaskWorker::run()
 	int pollIntervalSeconds = 0;
 	for (;;)
 	{
+        auto ch = rlutil::nb_getch();
+        if (ch != 0) {
+            ColoredString("Keypress detected, shutting down worker\n", TextColor::LightRed).print();
+            return;
+        }
+
 		if (tryRunOneTask())
 		{
 			pollIntervalSeconds = 0;
@@ -32,7 +39,7 @@ void TaskWorker::run()
 		{
 			ColoredString("Waiting for task (" + std::to_string(pollIntervalSeconds) + "s)\r", TextColor::Cyan).print();
 			std::this_thread::sleep_for(std::chrono::seconds(pollIntervalSeconds));
-			pollIntervalSeconds = (pollIntervalSeconds + 1) + (pollIntervalSeconds / 2); // *= 1.5 roughly
+			pollIntervalSeconds = (pollIntervalSeconds + 1) + (pollIntervalSeconds / 10); // slow exponential + linear slowdown
 			if (pollIntervalSeconds > MAX_POLL_INTERVAL_SECONDS) { pollIntervalSeconds = MAX_POLL_INTERVAL_SECONDS; }
 		}
 	}
@@ -63,7 +70,7 @@ bool TaskWorker::tryRunOneTask()
 	while (proc.isRunning())
 	{
 		std::this_thread::sleep_for(std::chrono::seconds(pollIntervalSeconds));
-		pollIntervalSeconds = (pollIntervalSeconds + 1) + (pollIntervalSeconds / 2); // *= 1.5 roughly
+		pollIntervalSeconds = (pollIntervalSeconds + 1) + (pollIntervalSeconds / 2); // slow exponential + linear slowdown
 		if (pollIntervalSeconds > MAX_POLL_INTERVAL_SECONDS) { pollIntervalSeconds = MAX_POLL_INTERVAL_SECONDS; }
 
 		auto optWasCanceled = m_client.wasTaskCanceled(runInfo.id);
@@ -79,7 +86,7 @@ bool TaskWorker::tryRunOneTask()
 	pollIntervalSeconds = 1;
 	while (!m_client.markTaskFinished(runInfo.id)) {
 		std::this_thread::sleep_for(std::chrono::seconds(pollIntervalSeconds));
-		pollIntervalSeconds = (pollIntervalSeconds + 1) + (pollIntervalSeconds / 2); // *= 1.5 roughly
+		pollIntervalSeconds = (pollIntervalSeconds + 1) + (pollIntervalSeconds / 2); // slow exponential + linear slowdown
 		if (pollIntervalSeconds > MAX_POLL_INTERVAL_SECONDS) { pollIntervalSeconds = MAX_POLL_INTERVAL_SECONDS; }
 
 		printWarning("Failed to mark task " + toHexString(runInfo.id) + " as finished; retrying.");
