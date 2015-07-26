@@ -2,11 +2,11 @@
 
 A few nice features Kickoff provides:
 
-* Fully generic, cross platform, and language/framework-agnostic: Kickoff simply distributes and runs your scripts.
-* Extremely simple: Kickoff requires NO configuration. Just run a task server, and arbitrarily many workers anywhere.
-* Supports arbitrary dependency graphs! Each task may specify any list of dependencies (e.g. not just map-reduce).
-* Each task may specify which "affinities" it can run on, and each worker specifies those it supports.
-* Despite these nice features, Kickoff's server is extremely efficient and scales easily to millions of tasks.
+* Fully generic, cross platform, and language/framework-agnostic task dispatcher
+* Extremely efficient (written in pure C++) and scales easily to millions of tasks.
+* Simple setup: Launch a server and add workers. Kickoff requires NO configuration.
+* Supports arbitrary dependency graphs (e.g. not just map-reduce).
+* Heterogeneous: Each task and worker specifies which "affinities" it needs/supports.
 
 Kickoff works great for a wide range of workflows, ranging from massively distributed computing with map-reduce style
 algorithm, to simple and quick task queues, or "cloud make" flows.
@@ -15,8 +15,9 @@ For more detail and documentation, simply run "kickoff" after building, and read
 
 ### NOTE
 
-Kickoff is a work in progress project. It's functional on windows but additional work is being done to make it even
-more efficient. Also, Linux support is planned (and should be fairly simple) but not finished.
+Kickoff is a work in progress project and hasn't been tested extensively. It's functional and very fast but 
+additional work is being done to make it even more efficient. Also, it works on Windows, and Linux support 
+is planned (and should be fairly simple) but not finished right now.
 
 ### Examples
 
