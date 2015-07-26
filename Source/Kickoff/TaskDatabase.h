@@ -105,7 +105,6 @@ struct TaskCreateInfo
 {
     TaskExecutable executable;
     TaskSchedule schedule;
-    PooledString description;
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -131,7 +130,6 @@ public:
     
     const TaskExecutable& getExecutable() const { return m_executable; }
     const TaskSchedule& getSchedule() const { return m_schedule; }
-    const PooledString& getDescription() const { return m_description; }
     const TaskStatus& getStatus() const { return m_status; }
 
 private:
@@ -140,7 +138,6 @@ private:
     TaskID m_id;
     TaskExecutable m_executable; // what to execute by the worker
     TaskSchedule m_schedule; // where and when to run the task
-    PooledString m_description; // has no functional effect on task execution
     TaskStatus m_status;
 
     std::vector<TaskWeakPtr> m_descendants;
@@ -159,6 +156,7 @@ class TaskDatabase
 public:
     TaskPtr getTaskByID(TaskID id) const;
     std::vector<TaskPtr> getTasksByStates(const std::set<TaskState>& states) const;
+	int getTotalTaskCount() const;
 
     TaskPtr createTask(const TaskCreateInfo& startInfo);
     TaskPtr takeTaskToRun(const std::string& workerName, const std::vector<std::string>& affinities);

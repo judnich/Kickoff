@@ -5,9 +5,11 @@
 #include "Crust/BlobStream.h"
 #include "Crust/FormattedText.h"
 
+static const int MAX_STATUS_TASKS = 100;
+
 enum class TaskRequestType : uint8_t
 {
-    GetDescription, GetExecutable, GetSchedule,
+    GetExecutable, GetSchedule,
     GetStatus, WasTaskCanceled, GetTasksByStates,
     Create, TakeToRun,
     MarkFinished, MarkShouldCancel, Delete
@@ -30,10 +32,8 @@ struct ServerStats
 
 struct TaskBriefInfo
 {
-    static const int MAX_DESC_LEN = 128;
     TaskID id;
     TaskStatus status;
-    std::string description; // truncated to MAX_DESC_LEN
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -76,12 +76,11 @@ public:
     TaskClient(const std::string& ipStr, int port);
     TaskClient(TaskClient&& client);
 
-    Optional<std::string> getTaskDescription(TaskID id);
     Optional<TaskExecutable> getTaskExecutable(TaskID id);
     Optional<TaskSchedule> getTaskSchedule(TaskID id);
     Optional<TaskStatus> getTaskStatus(TaskID id);
 	Optional<bool> wasTaskCanceled(TaskID id);
-    std::vector<TaskBriefInfo> getTasksByStates(const std::set<TaskState>& states);
+    Optional<std::vector<TaskBriefInfo>> getTasksByStates(const std::set<TaskState>& states);
 
     Optional<TaskID> createTask(const TaskCreateInfo& startInfo);
     Optional<TaskRunInfo> takeTaskToRun(const std::vector<std::string>& affinities);

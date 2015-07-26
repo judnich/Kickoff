@@ -37,8 +37,8 @@ static TextContainer::Ptr helpMessage()
 
     *doc += usageMessage(
         "new <script file> [args] [-interpreter <executable>]\n"
-        "  -server <database address> -affinity <affinity tags>\n"
-		"  [-label <description>] [-depend <dependency list>]\n");
+		"  -affinity <affinity tags separated by space or comma>\n"
+		"  [-depend <dependency list>] -server <database address>\n");
     *doc += usageMessage("cancel <task id> -server <database address");
     *doc += usageMessage("info <task id> -server <database address>");
     *doc += usageMessage("status -server <database address>");
@@ -65,10 +65,12 @@ static TextContainer::Ptr helpMessage()
         "run tasks on. For example, you might have one tag for 'cuda' on machines with CUDA capable GPUs; then launching tasks which "
         "require CUDA acceleration with the tag 'cuda' will ensure they will only run on appropriate machines."
     ));
-    
-    *doc += TextContainer::make(2, 1, TextBlock::make(
-		"Note: When you cancel a task, all its dependencies will be immediately canceled as well."
-    ));
+
+	*doc += TextContainer::make(2, 1, TextBlock::make(
+		"Notes: When you cancel a task, all its dependencies will be immediately canceled as well. The status command will only "
+		"work if the number of tasks is relatively small; otherwise the server will refuse to give a list; this is intentional "
+		"as the \"status\" command is more of a debugging tool for small scale systems and not something to be used at scale."
+		));
 
     return std::move(doc);
 }
@@ -183,7 +185,6 @@ int main(int argc, char* argv[])
         }
 
         TaskCreateInfo info;
-        info.description = args.getOptionValue("label");
         info.schedule.affinities = toPooledStrings(parseAffinities(args));
         info.schedule.dependencies = parseDependencies(args);
         info.executable.script = scriptFileData.orDefault(std::vector<uint8_t>());
@@ -203,7 +204,7 @@ int main(int argc, char* argv[])
             return -1;
         }
 
-        (ColoredString("Success! Created task: ", TextColor::Green) +
+        (ColoredString("Success! Created task:\n", TextColor::Green) +
             ColoredString(toHexString(taskID), TextColor::LightGreen)).print();
         return 0;
     }
@@ -243,10 +244,9 @@ int main(int argc, char* argv[])
 
         ColoredString("Requesting task info\n", TextColor::Cyan).print();
         auto optStatus = client.getTaskStatus(taskID);
-        auto optDesc = client.getTaskDescription(taskID);
         auto optSchedule = client.getTaskSchedule(taskID);
 
-        if (!optSchedule.hasValue() || !optDesc.hasValue() || !optStatus.hasValue()) {
+        if (!optSchedule.hasValue() || !optStatus.hasValue()) {
             printError("Failed retrieve task info. Task may not exist (e.g. was canceled, finished, or never started).");
             return -1;
         }
@@ -255,9 +255,6 @@ int main(int argc, char* argv[])
         *doc += TextHeader::make("Task " + toHexString(taskID), '-', TextColor::LightMagenta, TextColor::Magenta);
         *doc += TextBlock::make(optStatus.orDefault().toString(), TextColor::White);
         *doc += TextBlock::make(optSchedule.orDefault().toString(), TextColor::Gray);
-        if (optDesc.orDefault() != "") {
-            *doc += TextBlock::make("\"" + optDesc.orDefault() + "\"", TextColor::Green);
-        }
 
         doc->print();
         return 0;
@@ -275,13 +272,19 @@ int main(int argc, char* argv[])
         states.insert(TaskState::Canceling);
         
         ColoredString("Requesting task status list\n", TextColor::Cyan).print();
-        auto tasks = client.getTasksByStates(states);
+        auto optTasks = client.getTasksByStates(states);
+
+		std::vector<TaskBriefInfo> tasks;
+		if (!optTasks.tryGet(tasks)) {
+			printError("Task status list is not available because the total number of tasks is too large. This command is meant "
+				"to be used as a debugging tool for small-scale deployments, not large scale clusters.");
+		}
         
         TextHeader::make("Tasks Status")->print();
+		printWarning("The status command is meant to be used as a debugging tool for small-scale deployments, not large scale clusters. "
+			"This command will (intentionally) fail to succeed when the task server has a large number of tasks.");
 
         for (auto& task : tasks) {
-            printf("\n");
-
             auto state = task.status.getState();
             TextColor statusColor, statusColorBright;
             if (state == TaskState::Ready) { statusColorBright = TextColor::LightCyan; statusColor = TextColor::Cyan; }
@@ -291,13 +294,15 @@ int main(int argc, char* argv[])
             else { fail("Unexpected task state from server"); }
 
             auto str = ColoredString(toHexString(task.id), statusColorBright);
-            if (task.description != "") {
-                str += ColoredString(" \"" + task.description + "\"", TextColor::Gray);
-            }
-			str += ColoredString("\n" + task.status.toString() + "\n", statusColor);
+			str += ColoredString(": " + task.status.toString(), statusColor);
 
             str.print();
-        }
+			printf("\n");
+		}
+
+		if (tasks.size() == 0) {
+			ColoredString("No tasks.\n", TextColor::LightCyan).print();
+		}
     }
     else if (command == "worker") {
 		auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);

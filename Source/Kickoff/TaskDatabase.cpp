@@ -9,7 +9,6 @@ TaskPtr Task::create(TaskID id, const TaskCreateInfo& startInfo, const TaskDatab
     newTask->m_id = id;
     newTask->m_executable = startInfo.executable;
     newTask->m_schedule = startInfo.schedule;
-    newTask->m_description = startInfo.description;
     newTask->m_status.createTime = std::time(nullptr);
 
     // For each task this task depends on, keep track of dependencies (parents) and descendants (children)
@@ -162,6 +161,11 @@ std::vector<TaskPtr> TaskDatabase::getTasksByStates(const std::set<TaskState>& s
         }
     }
     return std::move(results);
+}
+
+int TaskDatabase::getTotalTaskCount() const
+{
+	return (int)m_allTasks.size();
 }
 
 static uint64_t fastRand64()
@@ -362,14 +366,12 @@ void TaskCreateInfo::serialize(BlobStreamWriter& writer) const
 {
     executable.serialize(writer);
     schedule.serialize(writer);
-    writer << description;
 }
 
 bool TaskCreateInfo::deserialize(BlobStreamReader& reader)
 {
     if (!executable.deserialize(reader)) { return false; }
     if (!schedule.deserialize(reader)) { return false; }
-    if (!(reader >> description)) { return false; }
     return true;
 }
 

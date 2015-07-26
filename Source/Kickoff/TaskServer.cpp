@@ -64,22 +64,6 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
     }
 
     switch (type) {
-        case TaskRequestType::GetDescription: {
-            TaskID id;
-            if (!(request >> id)) { break; }
-            auto task = m_db.getTaskByID(id);
-
-            if (!task) {
-                reply << TaskReplyType::Failed;
-            }
-            else {
-                reply << TaskReplyType::Success;
-                auto val = task->getDescription();
-                reply << val;
-            }
-            return reply;
-        }
-
         case TaskRequestType::GetExecutable: {
             TaskID id;
             if (!(request >> id)) { break; }
@@ -152,6 +136,11 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
 		}
 
         case TaskRequestType::GetTasksByStates: {
+			if (m_db.getTotalTaskCount() > MAX_STATUS_TASKS) {
+				reply << TaskReplyType::Failed;
+				return reply;
+			}
+
             std::set<TaskState> states;
             TaskState state;
             while (request >> state) {
@@ -164,13 +153,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             for (auto task : tasks) {
                 TaskBriefInfo info;
                 info.id = task->getID();
-                info.description = task->getDescription().get();
                 info.status = task->getStatus();
-
-                if (info.description.size() > TaskBriefInfo::MAX_DESC_LEN) {
-                    info.description = info.description.substr(0, TaskBriefInfo::MAX_DESC_LEN);
-                }
-
                 reply << info;
             }
 
@@ -290,23 +273,6 @@ TaskClient::ReplyData TaskClient::getReplyToRequest(const BlobStreamWriter& requ
     return std::move(replyData);
 }
 
-Optional<std::string> TaskClient::getTaskDescription(TaskID id)
-{
-    BlobStreamWriter request;
-    request << TaskRequestType::GetDescription;
-    request << id;
-
-    ReplyData reply = getReplyToRequest(request);
-    if (reply.type == TaskReplyType::Success) {
-        std::string val;
-        if (reply.reader >> val) {
-            return std::move(val);
-        }
-    }
-
-    return Nothing();
-}
-
 Optional<TaskExecutable> TaskClient::getTaskExecutable(TaskID id)
 {
     BlobStreamWriter request;
@@ -375,7 +341,7 @@ Optional<bool> TaskClient::wasTaskCanceled(TaskID id)
 	return Nothing();
 }
 
-std::vector<TaskBriefInfo> TaskClient::getTasksByStates(const std::set<TaskState>& states)
+Optional<std::vector<TaskBriefInfo>> TaskClient::getTasksByStates(const std::set<TaskState>& states)
 {
     BlobStreamWriter request;
     request << TaskRequestType::GetTasksByStates;
@@ -392,6 +358,9 @@ std::vector<TaskBriefInfo> TaskClient::getTasksByStates(const std::set<TaskState
             tasks.push_back(info);
         }
     }
+	else {
+		return Nothing();
+	}
 
     return tasks;
 }
@@ -474,14 +443,12 @@ void TaskBriefInfo::serialize(BlobStreamWriter& writer) const
 {
     writer << id;
     writer << status;
-    writer << description;
 }
 
 bool TaskBriefInfo::deserialize(BlobStreamReader& reader)
 {
     if (!(reader >> id)) { return false; }
     if (!(reader >> status)) { return false; }
-    if (!(reader >> description)) { return false; }
     return true;
 }
 
