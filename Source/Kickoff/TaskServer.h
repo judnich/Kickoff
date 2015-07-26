@@ -10,8 +10,8 @@ static const int MAX_STATUS_TASKS = 100;
 enum class TaskRequestType : uint8_t
 {
     GetExecutable, GetSchedule, GetStatus,
-    GetStats, WasTaskCanceled, GetTasksByStates,
-    Create, TakeToRun,
+    GetStats, GetTasksByStates,
+    Create, TakeToRun, HeartbeatAndCheckWasTaskCanceled,
     MarkFinished, MarkShouldCancel, Delete
 };
 
@@ -58,16 +58,19 @@ class TaskServer
 {
 public:
     TaskServer(int port);
-    void processRequest();
-    const ServerStats& getStats() const { return m_stats; }
+    void run();
+    void shutdown();
 
 private:
+    void processRequest();
     BlobStreamWriter generateReply(ArrayView<uint8_t> request);
 
     TaskDatabase m_db;
+    int m_port;
     zmq::context_t m_context;
     zmq::socket_t m_responder;
     ServerStats m_stats;
+    volatile bool m_running;
 };
 
 class TaskClient
@@ -79,7 +82,7 @@ public:
     Optional<TaskExecutable> getTaskExecutable(TaskID id);
     Optional<TaskSchedule> getTaskSchedule(TaskID id);
     Optional<TaskStatus> getTaskStatus(TaskID id);
-	Optional<bool> wasTaskCanceled(TaskID id);
+	Optional<bool> heartbeatAndCheckWasTaskCanceled(TaskID id);
     Optional<std::vector<TaskBriefInfo>> getTasksByStates(const std::set<TaskState>& states);
     Optional<TaskStats> getStats();
 

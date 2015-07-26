@@ -22,14 +22,16 @@ static ArrayView<uint8_t> viewMessage(const zmq::message_t& msg)
 
 
 TaskServer::TaskServer(int port)
-    : m_context(1)
+    : m_port(port)
+    , m_context(1)
     , m_responder(m_context, ZMQ_REP)
+    , m_running(false)
 {
     try {
-        m_responder.bind("tcp://*:" + std::to_string(port));
+        m_responder.bind("tcp://*:" + std::to_string(m_port));
     }
     catch (zmq::error_t) {
-        printError("Failed to start server on port " + std::to_string(port) + "!");
+        printError("Failed to start server on port " + std::to_string(m_port) + "!");
         exit(-1);
     }
 }
@@ -50,6 +52,36 @@ void TaskServer::processRequest()
 
     // Send the reply
     m_responder.send(toMessage(reply));
+}
+
+void TaskServer::run()
+{
+    ColoredString("Server running on port " + std::to_string(m_port) + "\n", TextColor::LightCyan).print();
+
+    time_t serverStartTime = std::time(nullptr);
+    time_t lastStatsPrint = 0;
+    const time_t minStatsInterval = 10;
+
+    m_running = true;
+    while (m_running) {
+        processRequest();
+
+        time_t now = std::time(nullptr);
+        time_t serverAge = now - serverStartTime;
+        time_t timeSinceLastPrint = now - lastStatsPrint;
+
+        if (timeSinceLastPrint >= minStatsInterval) {
+            if (lastStatsPrint == 0) { timeSinceLastPrint = now - serverStartTime; }
+            ColoredString("\n[+" + std::to_string(timeSinceLastPrint) + "s] ", TextColor::Cyan).print();
+            m_stats.toColoredString().print();
+            lastStatsPrint = now;
+        }
+    }
+}
+
+void TaskServer::shutdown()
+{
+    m_running = true;
 }
 
 BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
@@ -121,7 +153,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             return reply;
         }
 
-		case TaskRequestType::WasTaskCanceled: {
+		case TaskRequestType::HeartbeatAndCheckWasTaskCanceled: {
 			TaskID id;
 			if (!(request >> id)) { break; }
 			auto task = m_db.getTaskByID(id);
@@ -131,13 +163,12 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
 			}
 			else {
 				reply << TaskReplyType::Success;
+                m_db.heartbeatTask(task);
 
 				bool wasCanceled = false;
-				auto status = task->getStatus();
-				TaskRunStatus runStatus;
-				if (status.runStatus.tryGet(runStatus)) {
-					if (runStatus.wasCanceled) { wasCanceled = true; }
-				}
+                task->getStatus().runStatus.tryUnwrap([&wasCanceled](const TaskRunStatus& runStatus) {
+                    if (runStatus.wasCanceled) { wasCanceled = true; }
+                });
 
 				reply << wasCanceled;
 			}
@@ -333,10 +364,10 @@ Optional<TaskStatus> TaskClient::getTaskStatus(TaskID id)
     return Nothing();
 }
 
-Optional<bool> TaskClient::wasTaskCanceled(TaskID id)
+Optional<bool> TaskClient::heartbeatAndCheckWasTaskCanceled(TaskID id)
 {
 	BlobStreamWriter request;
-	request << TaskRequestType::WasTaskCanceled;
+	request << TaskRequestType::HeartbeatAndCheckWasTaskCanceled;
 	request << id;
 
 	ReplyData reply = getReplyToRequest(request);

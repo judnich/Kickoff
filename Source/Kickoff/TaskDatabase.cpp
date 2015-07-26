@@ -75,27 +75,34 @@ std::string Task::getHexID() const
     return toHexString(ArrayView<uint8_t>(reinterpret_cast<const uint8_t*>(&m_id), sizeof(m_id)));
 }
 
-void Task::markStarted(const std::string& workerName)
+bool Task::markStarted(const std::string& workerName)
 {
-    runtimeAssert(!m_status.runStatus.hasValue(), "Task::markStarted was called on a task after it already started");
+    if (m_status.runStatus.hasValue()) {
+        return false; // already started
+    }
+
     TaskRunStatus runStatus;
     runStatus.workerName = workerName;
     runStatus.startTime = std::time(nullptr);
+    runStatus.heartbeatTime = std::time(nullptr);
     runStatus.wasCanceled = false;
     m_status.runStatus = runStatus;
+
+    return true;
 }
 
-void Task::markShouldCancel(TaskDatabase& callback)
+bool Task::markShouldCancel(TaskDatabase& callback)
 {
     TaskRunStatus runStatus;
     if (m_status.runStatus.tryGet(runStatus)) {
         // If the task is already canceled, no need to do anything here
-        if (runStatus.wasCanceled) { return; }
+        if (runStatus.wasCanceled) { return false; }
     }
     else {
         // If this is a pending task, mark it as finished immediately
         runStatus.workerName = "";
         runStatus.startTime = 0;
+        runStatus.heartbeatTime = 0;
         runStatus.endTime = 0;
         callback.notifyTaskCompleted(shared_from_this());
     }
@@ -113,20 +120,44 @@ void Task::markShouldCancel(TaskDatabase& callback)
             task->markShouldCancel(callback);
         }
     }
+
+    return true;
 }
 
-void Task::markFinished(TaskDatabase& callback)
+bool Task::heartbeat()
+{
+    // Update a running task's heartbeat timestamp
+    bool success = true;
+    success &= m_status.runStatus.tryUnwrap(
+        [&success](TaskRunStatus& runStatus) {
+        if (runStatus.endTime.hasValue()) {
+            success = false; // already finished
+        }
+        else {
+            runStatus.heartbeatTime = std::time(nullptr);
+        }
+    });
+
+    return success;
+}
+
+bool Task::markFinished(TaskDatabase& callback)
 {
     TaskRunStatus runStatus;
     if (m_status.runStatus.tryGet(runStatus)) {
         // Marking a running task as finished
-        runtimeAssert(!runStatus.endTime.hasValue(), "Task::markFinished was called on a task after it already finished");
-        runStatus.endTime = std::time(nullptr);
+        if (runStatus.endTime.hasValue()) {
+            return false;
+        }
+        auto nowTime = std::time(nullptr);
+        runStatus.endTime = nowTime;
+        runStatus.heartbeatTime = nowTime;
     }
     else {
         // Marking a pending task as finished
         runStatus.workerName = "";
         runStatus.startTime = 0;
+        runStatus.heartbeatTime = 0;
         runStatus.endTime = 0;
     }
     m_status.runStatus = runStatus;
@@ -134,6 +165,7 @@ void Task::markFinished(TaskDatabase& callback)
     // Decrement the count of unsatisfied dependencies for each descendant, since this task is now done.
     // Note that even if this is called as the result of a task having been canceled, this behavior is
     // still okay because canceling a task also recursively cancels all of its dependent tasks.
+    bool success = true;
     for (auto weakPtr : m_descendants) {
         auto descendant = weakPtr.lock();
         if (descendant) {
@@ -148,6 +180,7 @@ void Task::markFinished(TaskDatabase& callback)
     }
 
     callback.notifyTaskCompleted(shared_from_this());
+    return true;
 }
 
 TaskPtr TaskDatabase::getTaskByID(TaskID id) const
@@ -261,14 +294,19 @@ TaskPtr TaskDatabase::takeTaskToRun(const std::string& workerName, const std::ve
     return readyTask;
 }
 
-void TaskDatabase::markTaskFinished(TaskPtr task)
+bool TaskDatabase::heartbeatTask(TaskPtr task)
 {
-    task->markFinished(*this);
+    return task->heartbeat();
 }
 
-void TaskDatabase::markTaskShouldCancel(TaskPtr task)
+bool TaskDatabase::markTaskFinished(TaskPtr task)
 {
-    task->markShouldCancel(*this);
+    return task->markFinished(*this);
+}
+
+bool TaskDatabase::markTaskShouldCancel(TaskPtr task)
+{
+    return task->markShouldCancel(*this);
 }
 
 void TaskDatabase::notifyTaskCompleted(TaskPtr task)
@@ -510,10 +548,10 @@ std::string TaskStatus::toString() const
             str += "Ready (dependencies satisfied; so far waited " + intervalToString(nowTime - createTime) + ")";
             break;
         case TaskState::Running:
-            str += "Running (current runtime " + intervalToString(nowTime - runStatusVal.startTime) + ")";
+            str += "Running (current runtime " + intervalToString(nowTime - runStatusVal.startTime) + "; worker heartbeat " + intervalToString(nowTime - runStatusVal.heartbeatTime) + ")";
             break;
         case TaskState::Canceling:
-            str += "Canceling (current runtime " + intervalToString(nowTime - runStatusVal.startTime) + ")";
+            str += "Canceling (current runtime " + intervalToString(nowTime - runStatusVal.startTime) + "; worker heartbeat " + intervalToString(nowTime - runStatusVal.heartbeatTime) + ")";
             break;
         case TaskState::Canceled:
             if (runStatusVal.startTime == time_t(0)) {

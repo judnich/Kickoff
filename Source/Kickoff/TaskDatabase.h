@@ -18,6 +18,9 @@ typedef std::shared_ptr<Task> TaskPtr;
 typedef std::weak_ptr<Task> TaskWeakPtr;
 class TaskDatabase;
 
+// If a running task hasn't recieved a heartbeat signal in over 5 minutes, consider the worker "dead" and time it out
+const int WORKER_HEARTBEAT_TIMEOUT_SECONDS = 60 * 5;
+
 
 typedef uint64_t TaskID;
 
@@ -71,6 +74,8 @@ struct TaskRunStatus
     bool wasCanceled;
     // This marks the time the task started running on the worker that dequeued it
     std::time_t startTime;
+    // This tracks the last time the worker that is running this task was heard from (used to timeout tasks)
+    std::time_t heartbeatTime;
     // If set, this marks the time when the task completed (either naturally or via cancellation). If not set, then the task is still running.
     Optional<std::time_t> endTime;
 
@@ -143,9 +148,10 @@ private:
     std::vector<TaskWeakPtr> m_descendants;
     std::vector<TaskPtr> m_dependencies; // cached strong pointers to children (vs just IDs, as stored in m_config.schedule.dependencies)
 
-    void markStarted(const std::string& workerName);
-    void markShouldCancel(TaskDatabase& callback);
-    void markFinished(TaskDatabase& callback);
+    bool markStarted(const std::string& workerName);
+    bool markShouldCancel(TaskDatabase& callback);
+    bool markFinished(TaskDatabase& callback);
+    bool heartbeat();
 };
 
 
@@ -171,8 +177,9 @@ public:
 
     TaskPtr createTask(const TaskCreateInfo& startInfo);
     TaskPtr takeTaskToRun(const std::string& workerName, const std::vector<std::string>& affinities);
-    void markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
-    void markTaskShouldCancel(TaskPtr task);
+    bool heartbeatTask(TaskPtr task);
+    bool markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
+    bool markTaskShouldCancel(TaskPtr task);
 
 private:
     friend class Task;

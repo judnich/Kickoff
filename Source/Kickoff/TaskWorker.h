@@ -10,11 +10,13 @@ public:
     ~TaskWorker();
 
     void run();
+    void shutdown();
 
 private:
     bool tryRunOneTask();
 
     TaskClient& m_client;
     std::vector<std::string> m_affinities;
+    volatile bool m_running;
 };
 

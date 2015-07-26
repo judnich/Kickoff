@@ -31,3 +31,11 @@ std::string getMachineName();
 bool makeDirectory(const std::string& dirPath);
 bool deleteDirectory(const std::string& dirPath, bool recursive = false);
 bool deleteFile(const std::string& filePath);
+
+template<class T>
+T clamp(const T& val, const T& min, const T& max)
+{
+    if (val < min) { return min; }
+    else if (val > max) { return max; }
+    return val;
+}

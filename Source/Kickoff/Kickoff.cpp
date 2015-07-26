@@ -154,6 +154,7 @@ ServerAddress parseConnectionString(const std::string& connectionStr, int defaul
     return addr;
 }
 
+
 const int defaultPort = 3355;
 
 int main(int argc, char* argv[])
@@ -326,10 +327,7 @@ int main(int argc, char* argv[])
 		auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
 		auto affinities = parseAffinities(args);
 
-		ColoredString("Connecting to task server\n", TextColor::Cyan).print();
 		TaskClient client(address.ip, address.port);
-
-		ColoredString("Starting worker\n", TextColor::Cyan).print();
 		TaskWorker worker(std::move(client), std::move(affinities));
 		worker.run();
 
@@ -344,26 +342,9 @@ int main(int argc, char* argv[])
         }
 
         TaskServer server(port);
-        ColoredString("Server started on port " + std::to_string(port) + "\n", TextColor::LightCyan).print();
+        server.run();
 
-        time_t serverStartTime = std::time(nullptr);
-        time_t lastStatsPrint = 0;
-        const time_t minStatsInterval = 10;
-
-        for (;;) {
-            server.processRequest();
-
-            time_t now = std::time(nullptr);
-            time_t serverAge = now - serverStartTime;
-            time_t timeSinceLastPrint = now - lastStatsPrint;
-
-            if (timeSinceLastPrint >= minStatsInterval) {
-                if (lastStatsPrint == 0) { timeSinceLastPrint = now - serverStartTime; }
-                ColoredString("\n[+" + std::to_string(timeSinceLastPrint) + "s] ", TextColor::Cyan).print();
-                server.getStats().toColoredString().print();
-                lastStatsPrint = now;
-            }
-        }
+        return 0;
     }
     else {
         printWarning("Invalid command \"" + command + "\"");

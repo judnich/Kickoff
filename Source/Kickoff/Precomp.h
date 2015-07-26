@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <tchar.h>
+#include <signal.h>
 
 #include "Crust/Algebraic.h"
 #include "Crust/Array.h"

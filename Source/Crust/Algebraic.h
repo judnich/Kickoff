@@ -259,13 +259,13 @@ public:
 
     bool tryUnwrap(std::function<void(const T&)> handleValue) const
     {
-        m_value.get(handleValue, [](const Nothing&){});
+        m_value.unwrap(handleValue, [](const Nothing&){});
         return hasValue();
     }
 
     bool tryUnwrap(std::function<void(T&)> handleValue)
     {
-        m_value.get(handleValue, [](const Nothing&){});
+        m_value.unwrap(handleValue, [](const Nothing&){});
         return hasValue();
     }
 
