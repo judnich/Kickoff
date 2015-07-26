@@ -9,15 +9,14 @@ void BlobStreamWriter::reserve(size_t bytes)
 
 BlobStreamWriter& BlobStreamWriter::operator<<(ArrayView<uint8_t> blob)
 {
-    size_t sizeStartOffset = m_data.size();
-    size_t dataStartOffset = sizeStartOffset + sizeof(int);
-    size_t endOffset = dataStartOffset + (size_t)blob.size();
-    int blobSize = blob.size();
+    if (blob.size() > 0) {
+        size_t startOffset = m_data.size();
+        size_t endOffset = startOffset + (size_t)blob.size();
 
-    m_data.resize(endOffset);
-    memcpy(&m_data[sizeStartOffset], &blobSize, sizeof(blobSize));
-    if (blobSize > 0) {
-        memcpy(&m_data[dataStartOffset], &blob.first(), blobSize);
+        m_data.resize(endOffset);
+        if (blob.size() > 0) {
+            memcpy(&m_data[startOffset], &blob.first(), blob.size());
+        }
     }
 
     return *this;
@@ -25,16 +24,19 @@ BlobStreamWriter& BlobStreamWriter::operator<<(ArrayView<uint8_t> blob)
 
 BlobStreamWriter& BlobStreamWriter::operator<<(const PooledBlob& blob)
 {
+    *this << (int)blob.get().size();
     return (*this << blob.get());
 }
 
 BlobStreamWriter& BlobStreamWriter::operator<<(const PooledString& blob)
 {
+    *this << (int)blob.get().size();
     return (*this << blob.getBytes());
 }
 
 BlobStreamWriter& BlobStreamWriter::operator<<(const std::string& blob)
 {
+    *this << (int)blob.size();
     ArrayView<uint8_t> bytes((const uint8_t*)blob.data(), int(blob.size() * sizeof(blob[1])));
     return (*this << bytes);
 }
@@ -42,49 +44,34 @@ BlobStreamWriter& BlobStreamWriter::operator<<(const std::string& blob)
 
 bool BlobStreamReader::operator>>(MutableArrayView<uint8_t> outBlob)
 {
-    auto maybeBlob = viewNextBlob();
-    ArrayView<uint8_t> blob;
-    if (maybeBlob.tryGet(blob)) {
-        if (blob.size() == outBlob.size()) {
-            outBlob.copyFrom(blob);
-            return true;
-        }
+    if (m_data.size() < outBlob.size()) {
+        return false;
     }
-    return false;
+    memcpy(&outBlob.first(), &m_data.first(), outBlob.size());
+    m_data = m_data.subView(outBlob.size(), m_data.size() - outBlob.size());
+    return true;
 }
 
 bool BlobStreamReader::operator>>(std::string& outBlob)
 {
-    auto maybeBlob = viewNextBlob();
-    ArrayView<uint8_t> blob;
-    if (maybeBlob.tryGet(blob)) {
-        if (blob.size() > 0) {
-            outBlob = std::string((const char*)&blob.first(), (size_t)blob.size());
-        }
-        else {
-            outBlob = "";
-        }
-        return true;
-    }
-    return false;
+    std::vector<char> strVec;
+    if (!(*this >> strVec)) { return false; }
+    outBlob = std::string(strVec.data(), strVec.size());
+    return true;
 }
 
-Optional<ArrayView<uint8_t>> BlobStreamReader::viewNextBlob()
+bool BlobStreamReader::operator>> (PooledString& outBlob)
 {
-    if (m_data.size() < sizeof(int)) {
-        return Nothing();
-    }
+    std::string blobStr;
+    if (!(*this >> blobStr)) { return false; }
+    outBlob = PooledString(std::move(blobStr));
+    return true;
+}
 
-    int blobSize = -1;
-    memcpy(&blobSize, &m_data.first(), sizeof(blobSize));
-    if (blobSize < 0) { return Nothing(); }
-
-    int endOffset = sizeof(int) + blobSize;
-    if (endOffset > m_data.size()) {
-        return Nothing();
-    }
-
-    auto view = m_data.subView(sizeof(int), blobSize);
-    m_data = m_data.subView(endOffset, m_data.size() - endOffset);
-    return view;
+bool BlobStreamReader::operator>> (PooledBlob& outBlob)
+{
+    std::vector<uint8_t> blobVec;
+    if (!(*this >> blobVec)) { return false; }
+    outBlob = PooledBlob(std::move(blobVec));
+    return true;
 }

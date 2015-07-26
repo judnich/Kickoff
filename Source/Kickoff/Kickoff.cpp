@@ -41,7 +41,7 @@ static TextContainer::Ptr helpMessage()
 		"  [-depend <dependency list>] -server <database address>\n");
     *doc += usageMessage("cancel <task id> -server <database address");
     *doc += usageMessage("info <task id> -server <database address>");
-    *doc += usageMessage("status -server <database address>");
+    *doc += usageMessage("list -server <database address>");
     *doc += usageMessage("worker -server <database address> -affinity <affinity tags>");
     *doc += usageMessage("server [-port <portnum>]");
 
@@ -259,7 +259,7 @@ int main(int argc, char* argv[])
         doc->print();
         return 0;
     }
-    else if (command == "status") {
+    else if (command == "list") {
         auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
 
 		ColoredString("Connecting to task server\n", TextColor::Cyan).print();
@@ -271,13 +271,14 @@ int main(int argc, char* argv[])
         states.insert(TaskState::Running);
         states.insert(TaskState::Canceling);
         
-        ColoredString("Requesting task status list\n", TextColor::Cyan).print();
+        ColoredString("Requesting task list\n", TextColor::Cyan).print();
         auto optTasks = client.getTasksByStates(states);
 
 		std::vector<TaskBriefInfo> tasks;
 		if (!optTasks.tryGet(tasks)) {
-			printError("Task status list is not available because the total number of tasks is too large. This command is meant "
+			printError("Task list is not available because the total number of tasks is too large. This command is meant "
 				"to be used as a debugging tool for small-scale deployments, not large scale clusters.");
+            return -1;
 		}
         
         TextHeader::make("Tasks Status")->print();

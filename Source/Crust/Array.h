@@ -15,7 +15,7 @@ public:
     int size() const { return N; }
     T* data() { return m_dataAllocation; }
     const T* data() const { return m_dataAllocation; }
-    
+
     bool operator== (const StaticArray<T, N>& other) const { return ArrayView<T>(*this) == ArrayView<T>(other); }
     bool operator!= (const StaticArray<T, N>& other) const { return !(ArrayView<T>(*this) == ArrayView<T>(other)); }
 
