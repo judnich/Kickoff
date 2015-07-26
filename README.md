@@ -27,12 +27,12 @@ To start a task server, simply run this command:
 
 Now workers can connect to the server and start recieving tasks. Starting a worker process is as simple as:
 
-`kickoff worker -affinity "cpu gpu" -server <server ip address>`
+`kickoff worker -affinity cpu gpu -server <server ip address>`
 
 Note the "affinity" option; this specifies which requirement configurations the worker support. Adding a task to be
 executed looks like this:
 
-`kickoff new dostuff.py arg1 arg2 arg3 -affinity "gpu" -server <server ip address>`
+`kickoff new dostuff.py arg1 arg2 arg3 -affinity gpu -server <server ip address>`
 
 The task here basically specifies that it needs workers which support the "gpu" affinity, and will therefore only be
 given to workers that report support for that affinity.
