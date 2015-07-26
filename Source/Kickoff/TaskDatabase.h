@@ -151,12 +151,23 @@ private:
 
 typedef std::map<TaskID, TaskPtr> TasksByID;
 
+struct TaskStats
+{
+    TaskStats();
+
+    int numWaiting;
+    int numReady;
+    int numRunning;
+    uint64_t numFinished;
+};
+
 class TaskDatabase
 {
 public:
     TaskPtr getTaskByID(TaskID id) const;
     std::vector<TaskPtr> getTasksByStates(const std::set<TaskState>& states) const;
 	int getTotalTaskCount() const;
+    TaskStats getStats() const { return m_stats; }
 
     TaskPtr createTask(const TaskCreateInfo& startInfo);
     TaskPtr takeTaskToRun(const std::string& workerName, const std::vector<std::string>& affinities);
@@ -172,5 +183,6 @@ private:
 
     std::map<PooledString, std::set<TaskID>> m_readyTasksPerAffinity;
     TasksByID m_allTasks;
+    TaskStats m_stats;
 };
 

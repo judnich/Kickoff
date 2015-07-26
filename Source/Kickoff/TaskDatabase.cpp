@@ -3,6 +3,14 @@
 #include "Crust/Error.h"
 
 
+TaskStats::TaskStats()
+    : numWaiting(0)
+    , numReady(0)
+    , numRunning(0)
+    , numFinished(0)
+{}
+
+
 TaskPtr Task::create(TaskID id, const TaskCreateInfo& startInfo, const TaskDatabase& db)
 {
     TaskPtr newTask = std::make_shared<Task>();
@@ -200,6 +208,7 @@ TaskPtr TaskDatabase::createTask(const TaskCreateInfo& info)
 {
     TaskID id = getUnusedTaskID();
     TaskPtr task = Task::create(id, info, *this);
+    m_stats.numWaiting++;
 
     if (m_allTasks.find(id) != m_allTasks.end()) {
         fail("Cannot creat task -- task ID already exists.");
@@ -237,6 +246,9 @@ TaskPtr TaskDatabase::takeTaskToRun(const std::string& workerName, const std::ve
         readyTask = getTaskByID(readyTaskID);
         assert(readyTask);
 
+        m_stats.numReady--;
+        m_stats.numRunning++;
+
         // Now that a ready task was found, remove it from the "ready tasks" sets
         for (auto& readyTasks : m_readyTasksPerAffinity) {
             readyTasks.second.erase(readyTask->getID());
@@ -265,6 +277,9 @@ void TaskDatabase::notifyTaskCompleted(TaskPtr task)
         m_readyTasksPerAffinity[affinity].erase(task->getID());
     }
     m_allTasks.erase(task->getID());
+
+    m_stats.numRunning--;
+    m_stats.numFinished++;
 }
 
 void TaskDatabase::notifyTaskReady(TaskPtr task)
@@ -273,6 +288,8 @@ void TaskDatabase::notifyTaskReady(TaskPtr task)
     for (const auto& affinity : task->getSchedule().affinities) {
         m_readyTasksPerAffinity[affinity].insert(task->getID());
     }
+    m_stats.numWaiting--;
+    m_stats.numReady++;
 }
 
 

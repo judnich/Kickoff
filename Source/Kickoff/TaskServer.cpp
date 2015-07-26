@@ -112,6 +112,15 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
 			return reply;
 		}
 
+        case TaskRequestType::GetStats: {
+            if (request.hasMore()) { break; }
+
+            reply << TaskReplyType::Success;
+            reply << m_db.getStats();
+
+            return reply;
+        }
+
 		case TaskRequestType::WasTaskCanceled: {
 			TaskID id;
 			if (!(request >> id)) { break; }
@@ -363,6 +372,21 @@ Optional<std::vector<TaskBriefInfo>> TaskClient::getTasksByStates(const std::set
 	}
 
     return tasks;
+}
+
+Optional<TaskStats> TaskClient::getStats()
+{
+    BlobStreamWriter request;
+    request << TaskRequestType::GetStats;
+
+    ReplyData reply = getReplyToRequest(request);
+    if (reply.type == TaskReplyType::Success) {
+        TaskStats stats;
+        if (reply.reader >> stats) {
+            return stats;
+        }
+    }
+    return Nothing();
 }
 
 Optional<TaskID> TaskClient::createTask(const TaskCreateInfo& startInfo)

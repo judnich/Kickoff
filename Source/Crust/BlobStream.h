@@ -83,6 +83,8 @@ public:
         return (*this >> bytes);
     }
 
+    bool hasMore() const { return m_data.size() > 0; }
+
 private:
     ArrayView<uint8_t> m_data;
 };

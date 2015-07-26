@@ -9,8 +9,8 @@ static const int MAX_STATUS_TASKS = 100;
 
 enum class TaskRequestType : uint8_t
 {
-    GetExecutable, GetSchedule,
-    GetStatus, WasTaskCanceled, GetTasksByStates,
+    GetExecutable, GetSchedule, GetStatus,
+    GetStats, WasTaskCanceled, GetTasksByStates,
     Create, TakeToRun,
     MarkFinished, MarkShouldCancel, Delete
 };
@@ -81,6 +81,7 @@ public:
     Optional<TaskStatus> getTaskStatus(TaskID id);
 	Optional<bool> wasTaskCanceled(TaskID id);
     Optional<std::vector<TaskBriefInfo>> getTasksByStates(const std::set<TaskState>& states);
+    Optional<TaskStats> getStats();
 
     Optional<TaskID> createTask(const TaskCreateInfo& startInfo);
     Optional<TaskRunInfo> takeTaskToRun(const std::vector<std::string>& affinities);

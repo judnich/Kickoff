@@ -42,6 +42,7 @@ static TextContainer::Ptr helpMessage()
     *doc += usageMessage("cancel <task id> -server <database address");
     *doc += usageMessage("info <task id> -server <database address>");
     *doc += usageMessage("list -server <database address>");
+    *doc += usageMessage("stats -server <database address>");
     *doc += usageMessage("worker -server <database address> -affinity <affinity tags>");
     *doc += usageMessage("server [-port <portnum>]");
 
@@ -167,8 +168,6 @@ int main(int argc, char* argv[])
     auto command = args.popUnnamedArg();
     if (command == "new") {
         auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
-
-        ColoredString("Connecting\n", TextColor::Cyan).print();
         TaskClient client(address.ip, address.port);
 
         auto scriptFilename = args.popUnnamedArg();
@@ -217,10 +216,7 @@ int main(int argc, char* argv[])
             return -1;
         }
 
-		ColoredString("Connecting to task server\n", TextColor::Cyan).print();
 		TaskClient client(address.ip, address.port);
-
-        ColoredString("Canceling task\n", TextColor::Cyan).print();
         if (!client.markTaskShouldCancel(taskID)) {
             printError("Failed mark task for cancellation. Task may not exist (e.g. was already canceled, finished, or never started).");
             return -1;
@@ -239,51 +235,57 @@ int main(int argc, char* argv[])
             return -1;
         }
 
-		ColoredString("Connecting to task server\n", TextColor::Cyan).print();
 		TaskClient client(address.ip, address.port);
 
-        ColoredString("Requesting task info\n", TextColor::Cyan).print();
         auto optStatus = client.getTaskStatus(taskID);
         auto optSchedule = client.getTaskSchedule(taskID);
 
-        if (!optSchedule.hasValue() || !optStatus.hasValue()) {
+        TaskStatus status;
+        TaskSchedule schedule;
+
+        if (!optSchedule.tryGet(schedule) || !optStatus.tryGet(status)) {
             printError("Failed retrieve task info. Task may not exist (e.g. was canceled, finished, or never started).");
             return -1;
         }
 
-        auto doc = TextContainer::make(2, 2, 1, 1);
-        *doc += TextHeader::make("Task " + toHexString(taskID), '-', TextColor::LightMagenta, TextColor::Magenta);
-        *doc += TextBlock::make(optStatus.orDefault().toString(), TextColor::White);
-        *doc += TextBlock::make(optSchedule.orDefault().toString(), TextColor::Gray);
+        auto state = status.getState();
+        TextColor statusColor, statusColorBright;
+        if (state == TaskState::Ready) { statusColorBright = TextColor::LightCyan; statusColor = TextColor::Cyan; }
+        else if (state == TaskState::Waiting) { statusColorBright = TextColor::White; statusColor = TextColor::Gray; }
+        else if (state == TaskState::Running) { statusColorBright = TextColor::LightGreen; statusColor = TextColor::Green; }
+        else if (state == TaskState::Canceling) { statusColorBright = TextColor::LightRed; statusColor = TextColor::Red; }
+        else { fail("Unexpected task state from server"); }
 
-        doc->print();
+        (ColoredString(toHexString(taskID), statusColorBright)
+            + ColoredString(": " + status.toString(), statusColor)
+            + ColoredString("\n" + schedule.toString() + "\n", statusColor)
+        ).print();
+
         return 0;
     }
     else if (command == "list") {
         auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
 
-		ColoredString("Connecting to task server\n", TextColor::Cyan).print();
-		TaskClient client(address.ip, address.port);
+        TaskClient client(address.ip, address.port);
 
         std::set<TaskState> states;
         states.insert(TaskState::Waiting);
         states.insert(TaskState::Ready);
         states.insert(TaskState::Running);
         states.insert(TaskState::Canceling);
-        
-        ColoredString("Requesting task list\n", TextColor::Cyan).print();
+
         auto optTasks = client.getTasksByStates(states);
 
-		std::vector<TaskBriefInfo> tasks;
-		if (!optTasks.tryGet(tasks)) {
-			printError("Task list is not available because the total number of tasks is too large. This command is meant "
-				"to be used as a debugging tool for small-scale deployments, not large scale clusters.");
+        std::vector<TaskBriefInfo> tasks;
+        if (!optTasks.tryGet(tasks)) {
+            printError("Task list is not available because the total number of tasks is too large. This command is meant "
+                "to be used as a debugging tool for small-scale deployments, not large scale clusters.");
             return -1;
-		}
-        
+        }
+
         TextHeader::make("Tasks Status")->print();
-		printWarning("The status command is meant to be used as a debugging tool for small-scale deployments, not large scale clusters. "
-			"This command will (intentionally) fail to succeed when the task server has a large number of tasks.");
+        printWarning("The status command is meant to be used as a debugging tool for small-scale deployments, not large scale clusters. "
+            "This command will (intentionally) fail to succeed when the task server has a large number of tasks.");
 
         for (auto& task : tasks) {
             auto state = task.status.getState();
@@ -294,16 +296,31 @@ int main(int argc, char* argv[])
             else if (state == TaskState::Canceling) { statusColorBright = TextColor::LightRed; statusColor = TextColor::Red; }
             else { fail("Unexpected task state from server"); }
 
-            auto str = ColoredString(toHexString(task.id), statusColorBright);
-			str += ColoredString(": " + task.status.toString(), statusColor);
+            (ColoredString(toHexString(task.id), statusColorBright) + ColoredString(": " + task.status.toString(), statusColor)).print();
+            printf("\n");
+        }
 
-            str.print();
-			printf("\n");
-		}
+        if (tasks.size() == 0) {
+            ColoredString("No tasks.\n", TextColor::LightCyan).print();
+        }
+    }
+    else if (command == "stats") {
+        auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
 
-		if (tasks.size() == 0) {
-			ColoredString("No tasks.\n", TextColor::LightCyan).print();
-		}
+        TaskClient client(address.ip, address.port);
+        auto optStats = client.getStats();
+
+        TaskStats stats;
+        if (!optStats.tryGet(stats)) {
+            printError("Failed retrieve task server stats. Server may not be responding.");
+            return -1;
+            return -1;
+        }
+
+        (ColoredString(std::to_string(stats.numWaiting), TextColor::LightYellow) + ColoredString(" tasks waiting\n", TextColor::Yellow)).print();
+        (ColoredString(std::to_string(stats.numReady), TextColor::LightCyan) + ColoredString(" tasks ready\n", TextColor::Cyan)).print();
+        (ColoredString(std::to_string(stats.numRunning), TextColor::LightGreen) + ColoredString(" tasks running\n", TextColor::Green)).print();
+        (ColoredString(std::to_string(stats.numFinished), TextColor::LightMagenta) + ColoredString(" tasks finished.\n", TextColor::Magenta)).print();
     }
     else if (command == "worker") {
 		auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
