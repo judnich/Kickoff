@@ -461,6 +461,7 @@ void TaskRunStatus::serialize(BlobStreamWriter& writer) const
     writer << workerName;
     writer << wasCanceled;
     writer << startTime;
+    writer << heartbeatTime;
 
     std::time_t endTimeVal;
     if (endTime.tryGet(endTimeVal)) {
@@ -477,6 +478,7 @@ bool TaskRunStatus::deserialize(BlobStreamReader& reader)
     if (!(reader >> workerName)) { return false; }
     if (!(reader >> wasCanceled)) { return false; }
     if (!(reader >> startTime)) { return false; }
+    if (!(reader >> heartbeatTime)) { return false; }
 
     bool hasEndTime;
     if (!(reader >> hasEndTime)) { return false; }

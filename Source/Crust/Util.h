@@ -35,6 +35,7 @@ bool deleteFile(const std::string& filePath);
 template<class T>
 T clamp(const T& val, const T& min, const T& max)
 {
+    assert(min <= max);
     if (val < min) { return min; }
     else if (val > max) { return max; }
     return val;

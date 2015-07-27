@@ -8,7 +8,7 @@
 static const int MIN_PROCESS_POLL_INTERVAL_MS = 100;
 static const int MIN_SERVER_POLL_MS = 1000;
 static const int MAX_WAITING_POLL_INTERVAL_MS = 60 * 1000;
-static const int MAX_RUNNING_POLL_INTERVAL_MS = clamp<int>(MAX_RUNNING_POLL_INTERVAL_MS, 1, 1000 * WORKER_HEARTBEAT_TIMEOUT_SECONDS / 2);
+static const int MAX_RUNNING_POLL_INTERVAL_MS = clamp<int>(MAX_WAITING_POLL_INTERVAL_MS, MIN_PROCESS_POLL_INTERVAL_MS, 1000 * WORKER_HEARTBEAT_TIMEOUT_SECONDS / 2);
 
 
 TaskWorker::TaskWorker(TaskClient& client, std::vector<std::string>&& affinities)
@@ -82,6 +82,7 @@ bool TaskWorker::tryRunOneTask()
         pollIntervalSecondsMS = clamp(pollIntervalSecondsMS, MIN_PROCESS_POLL_INTERVAL_MS, MAX_RUNNING_POLL_INTERVAL_MS);
 		std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalSecondsMS));
         timeSleptBetweenHeartbeatMS += pollIntervalSecondsMS;
+        printf("slept %d\n", pollIntervalSecondsMS);
         pollIntervalSecondsMS = (pollIntervalSecondsMS + 1) + (pollIntervalSecondsMS / 2);
 
         // If enough time has passed, send a heartbeat signal while and check if the task was canceled
