@@ -18,9 +18,6 @@ typedef std::shared_ptr<Task> TaskPtr;
 typedef std::weak_ptr<Task> TaskWeakPtr;
 class TaskDatabase;
 
-// If a running task hasn't recieved a heartbeat signal in over 5 minutes, consider the worker "dead" and time it out
-const int WORKER_HEARTBEAT_TIMEOUT_SECONDS = 60 * 5;
-
 
 typedef uint64_t TaskID;
 
@@ -181,10 +178,14 @@ public:
     bool markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
     bool markTaskShouldCancel(TaskPtr task);
 
+    void cleanupZombieTasks(std::time_t heartbeatTimeoutSeconds);
+
 private:
     friend class Task;
 
     TaskID getUnusedTaskID() const;
+    bool cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeoutSeconds);
+
     void notifyTaskReady(TaskPtr task);
     void notifyTaskCompleted(TaskPtr task);
 

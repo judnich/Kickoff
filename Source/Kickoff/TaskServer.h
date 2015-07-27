@@ -5,7 +5,20 @@
 #include "Crust/BlobStream.h"
 #include "Crust/FormattedText.h"
 
+// The "status" command (TaskRequestTyep::GetStatus) only works when there are fewer than these tasks tracked by the server
 static const int MAX_STATUS_TASKS = 100;
+
+// Minimum seconds between the server printing out basic stats (number of requests, etc.)
+const int SERVER_STATS_MIN_INTERVAL_SECONDS = 10;
+
+// If a running task hasn't received a heartbeat signal in over 5 minutes, consider the worker "dead" and time it out.
+// The worker should always ping the server at least this frequently, so this will only timeout when something very wrong
+// has happened to a worker owning a particular task (e.g. it was killed, machine lost power, etc.)
+const int WORKER_HEARTBEAT_TIMEOUT_SECONDS = 60 * 5;
+
+// Seconds between checking for and cleaning up running tasks that have timed out
+const int SERVER_TASK_CLEANUP_INTERVAL_SECONDS = 60;
+
 
 enum class TaskRequestType : uint8_t
 {

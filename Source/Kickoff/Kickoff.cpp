@@ -341,7 +341,6 @@ int main(int argc, char* argv[])
         if (!optStats.tryGet(stats)) {
             printError("Failed retrieve task server stats. Server may not be responding.");
             return -1;
-            return -1;
         }
 
         (ColoredString(std::to_string(stats.numWaiting), TextColor::LightYellow) + ColoredString(" tasks waiting\n", TextColor::Yellow)).print();

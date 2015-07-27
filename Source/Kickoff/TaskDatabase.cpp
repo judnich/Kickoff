@@ -309,6 +309,14 @@ bool TaskDatabase::markTaskShouldCancel(TaskPtr task)
     return task->markShouldCancel(*this);
 }
 
+void TaskDatabase::cleanupZombieTasks(std::time_t heartbeatTimeoutSeconds)
+{
+    for (auto item : m_allTasks) {
+        auto task = item.second;
+        cleanupIfZombieTask(task, heartbeatTimeoutSeconds);
+    }
+}
+
 void TaskDatabase::notifyTaskCompleted(TaskPtr task)
 {
     for (const auto& affinity : task->getSchedule().affinities) {
@@ -318,6 +326,23 @@ void TaskDatabase::notifyTaskCompleted(TaskPtr task)
 
     m_stats.numRunning--;
     m_stats.numFinished++;
+}
+
+bool TaskDatabase::cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeoutSeconds)
+{
+    bool died = false;
+
+    task->getStatus().runStatus.tryUnwrap([&](const TaskRunStatus& runStatusVal) {
+        if (!runStatusVal.endTime.hasValue()) {
+            std::time_t diff = std::time(nullptr) - runStatusVal.heartbeatTime;
+            died = (diff >= heartbeatTimeoutSeconds);
+        }
+    });
+
+    if (died) {
+        markTaskFinished(task);
+    }
+    return died;
 }
 
 void TaskDatabase::notifyTaskReady(TaskPtr task)

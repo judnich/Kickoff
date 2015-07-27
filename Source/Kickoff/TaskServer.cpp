@@ -59,8 +59,7 @@ void TaskServer::run()
     ColoredString("Server running on port " + std::to_string(m_port) + "\n", TextColor::LightCyan).print();
 
     time_t serverStartTime = std::time(nullptr);
-    time_t lastStatsPrint = 0;
-    const time_t minStatsInterval = 10;
+    time_t lastStatsPrint = 0, lastCleanup = 0;
 
     m_running = true;
     while (m_running) {
@@ -69,12 +68,17 @@ void TaskServer::run()
         time_t now = std::time(nullptr);
         time_t serverAge = now - serverStartTime;
         time_t timeSinceLastPrint = now - lastStatsPrint;
+        time_t timeSinceLastCleanup = now - lastCleanup;
 
-        if (timeSinceLastPrint >= minStatsInterval) {
+        if (timeSinceLastPrint >= SERVER_STATS_MIN_INTERVAL_SECONDS) {
             if (lastStatsPrint == 0) { timeSinceLastPrint = now - serverStartTime; }
             ColoredString("\n[+" + std::to_string(timeSinceLastPrint) + "s] ", TextColor::Cyan).print();
             m_stats.toColoredString().print();
             lastStatsPrint = now;
+        }
+
+        if (timeSinceLastCleanup >= SERVER_TASK_CLEANUP_INTERVAL_SECONDS) {
+            m_db.cleanupZombieTasks(WORKER_HEARTBEAT_TIMEOUT_SECONDS);
         }
     }
 }
