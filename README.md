@@ -1,8 +1,8 @@
-## Kickoff - Efficient task execution graph system for "heterogeneous" distributed compute clusters
+## Kickoff - Efficient task graph scheduler for "heterogeneous" distributed compute clusters
 
 A few nice features Kickoff provides:
 
-* Fully generic, cross platform, and language/framework-agnostic task dispatcher
+* Fully generic, cross platform, and language/framework-agnostic task scheduler
 * Extremely efficient (written in pure C++) and scales easily to millions of tasks.
 * Simple setup: Launch a server and add workers. Kickoff requires NO configuration.
 * Supports arbitrary dependency graphs (e.g. not just map-reduce).
