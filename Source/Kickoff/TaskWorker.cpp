@@ -48,6 +48,7 @@ void TaskWorker::run()
 
 void TaskWorker::shutdown()
 {
+    ColoredString("Shutting down worker (will wait for running tasks to complete)\n", TextColor::LightYellow).print();
     m_running = false;
 }
 

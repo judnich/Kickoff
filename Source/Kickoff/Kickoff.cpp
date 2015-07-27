@@ -3,6 +3,9 @@
 
 #include "Precomp.h"
 
+const int DEFAULT_TASK_SERVER_PORT = 3355;
+
+
 static TextContainer::Ptr usageMessage(const std::string& args)
 {
     return TextContainer::make(2, 0, 
@@ -155,7 +158,30 @@ ServerAddress parseConnectionString(const std::string& connectionStr, int defaul
 }
 
 
-const int defaultPort = 3355;
+TaskWorker* gWorkerForInterruptHandler = nullptr;
+
+static void interruptHandler(int sig)
+{
+    if (gWorkerForInterruptHandler) {
+        signal(sig, SIG_IGN);
+
+        printWarning("Control-C was detected while the worker is running. Shutting down gracefully now; "
+            "trying again will immediately terminate the worker and the task running within "
+            "(which will cause it to appear stuck in the \"running\" state until the task server "
+            "times it out.");
+
+        gWorkerForInterruptHandler->shutdown();
+        gWorkerForInterruptHandler = nullptr;
+
+
+        signal(SIGINT, interruptHandler);
+    }
+    else {
+        printError("Control-C was detected again while the worker is running. Terminating immediately!");
+        exit(-2);
+    }
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -168,7 +194,7 @@ int main(int argc, char* argv[])
 
     auto command = args.popUnnamedArg();
     if (command == "new") {
-        auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
+        auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
         TaskClient client(address.ip, address.port);
 
         auto scriptFilename = args.popUnnamedArg();
@@ -209,7 +235,7 @@ int main(int argc, char* argv[])
         return 0;
     }
     else if (command == "cancel") {
-        auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
+        auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
         auto taskIDStr = args.popUnnamedArg();
         TaskID taskID;
         if (!hexStringToUint64(taskIDStr).tryGet(taskID)) {
@@ -228,7 +254,7 @@ int main(int argc, char* argv[])
         return 0;
     }
     else if (command == "info") {
-        auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
+        auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
         auto taskIDStr = args.popUnnamedArg();
         TaskID taskID;
         if (!hexStringToUint64(taskIDStr).tryGet(taskID)) {
@@ -265,7 +291,7 @@ int main(int argc, char* argv[])
         return 0;
     }
     else if (command == "list") {
-        auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
+        auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
 
         TaskClient client(address.ip, address.port);
 
@@ -306,7 +332,7 @@ int main(int argc, char* argv[])
         }
     }
     else if (command == "stats") {
-        auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
+        auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
 
         TaskClient client(address.ip, address.port);
         auto optStats = client.getStats();
@@ -324,17 +350,22 @@ int main(int argc, char* argv[])
         (ColoredString(std::to_string(stats.numFinished), TextColor::LightMagenta) + ColoredString(" tasks finished.\n", TextColor::Magenta)).print();
     }
     else if (command == "worker") {
-		auto address = parseConnectionString(args.expectOptionValue("server"), defaultPort);
+		auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
 		auto affinities = parseAffinities(args);
 
 		TaskClient client(address.ip, address.port);
 		TaskWorker worker(std::move(client), std::move(affinities));
-		worker.run();
 
+        gWorkerForInterruptHandler = &worker;
+        signal(SIGINT, interruptHandler);
+ 
+        worker.run();
+
+        ColoredString("Worker was gracefully shut down!\n", TextColor::LightGreen).print();
 		return 0;
     }
     else if (command == "server") {
-        std::string portStr = args.getOptionValue("port", std::to_string(defaultPort));
+        std::string portStr = args.getOptionValue("port", std::to_string(DEFAULT_TASK_SERVER_PORT));
         int port = parseInt(portStr);
         if (port == 0) {
             printError("Invalid port number.");
@@ -344,6 +375,7 @@ int main(int argc, char* argv[])
         TaskServer server(port);
         server.run();
 
+        ColoredString("Server was gracefully shut down!\n", TextColor::LightGreen).print();
         return 0;
     }
     else {

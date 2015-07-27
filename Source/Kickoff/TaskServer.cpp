@@ -81,6 +81,7 @@ void TaskServer::run()
 
 void TaskServer::shutdown()
 {
+    ColoredString("Shutting down server\n", TextColor::LightYellow).print();
     m_running = true;
 }
 
