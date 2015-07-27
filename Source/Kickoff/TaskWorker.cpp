@@ -26,22 +26,22 @@ void TaskWorker::run()
     ColoredString("Starting worker.\n", TextColor::Cyan).print();
     m_running = true;
 
-	int pollIntervalSeconds = 0;
+	int pollIntervalMS = 0;
 	while (m_running)
 	{
 		if (tryRunOneTask())
 		{
-			pollIntervalSeconds = 0;
+			pollIntervalMS = 0;
 			ColoredString("Requesting next task\n", TextColor::Cyan).print();
 		}
 		else
 		{
-			ColoredString("Waiting for task (" + std::to_string(pollIntervalSeconds) + "s)\r", TextColor::Cyan).print();
+			ColoredString("Waiting for task (" + std::to_string(pollIntervalMS / 1000) + "s)\r", TextColor::Cyan).print();
             
             // While no tasks are ready, sleep for a little bit before checking again (at slowly increasing intervals)
-            pollIntervalSeconds = clamp(pollIntervalSeconds, MIN_SERVER_POLL_MS, MAX_WAITING_POLL_INTERVAL_MS);
-            std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalSeconds));
-			pollIntervalSeconds = (pollIntervalSeconds + 1) + (pollIntervalSeconds / 4); // slow exponential slowdown
+            pollIntervalMS = clamp(pollIntervalMS, MIN_SERVER_POLL_MS, MAX_WAITING_POLL_INTERVAL_MS);
+            std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMS));
+			pollIntervalMS = (pollIntervalMS + 1) + (pollIntervalMS / 4); // slow exponential slowdown
 		}
 	}
 }
@@ -82,7 +82,6 @@ bool TaskWorker::tryRunOneTask()
         pollIntervalSecondsMS = clamp(pollIntervalSecondsMS, MIN_PROCESS_POLL_INTERVAL_MS, MAX_RUNNING_POLL_INTERVAL_MS);
 		std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalSecondsMS));
         timeSleptBetweenHeartbeatMS += pollIntervalSecondsMS;
-        printf("slept %d\n", pollIntervalSecondsMS);
         pollIntervalSecondsMS = (pollIntervalSecondsMS + 1) + (pollIntervalSecondsMS / 2);
 
         // If enough time has passed, send a heartbeat signal while and check if the task was canceled
