@@ -165,10 +165,8 @@ static void interruptHandler(int sig)
     if (gWorkerForInterruptHandler) {
         signal(sig, SIG_IGN);
 
-        printWarning("Control-C was detected while the worker is running. Shutting down gracefully now; "
-            "trying again will immediately terminate the worker and the task running within "
-            "(which will cause it to appear stuck in the \"running\" state until the task server "
-            "times it out.");
+        printWarning("Control-C was detected while the worker is running; shutting down gracefully now. "
+            "Trying Control-C again will immediately terminate the worker and the task running within.");
 
         gWorkerForInterruptHandler->shutdown();
         gWorkerForInterruptHandler = nullptr;

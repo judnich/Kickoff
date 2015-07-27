@@ -15,8 +15,7 @@ void fail(const std::string& message)
 void printError(const std::string& message)
 {
     TextContainer doc(2, 2, 1, 1);
-    doc += TextHeader::make("Error", '*', TextColor::LightRed, TextColor::LightRed);
-    doc += TextBlock::make(ColoredString("ERROR: ", TextColor::LightRed) + ColoredString(message, TextColor::Red));
+    doc += TextBlock::make(ColoredString("ERROR: ", TextColor::LightRed) + ColoredString(message, TextColor::LightRed));
     doc.print();
 }
 
