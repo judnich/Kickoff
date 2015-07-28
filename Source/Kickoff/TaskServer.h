@@ -5,6 +5,7 @@
 #include "Crust/BlobStream.h"
 #include "Crust/FormattedText.h"
 
+
 // The "status" command (TaskRequestTyep::GetStatus) only works when there are fewer than these tasks tracked by the server
 static const int MAX_STATUS_TASKS = 100;
 
@@ -33,6 +34,7 @@ enum class TaskReplyType : uint8_t
     BadRequest, Success, Failed
 };
 
+
 struct ServerStats
 {
     ServerStats();
@@ -42,6 +44,7 @@ struct ServerStats
     uint64_t failedRequests;
     uint64_t badRequests;
 };
+
 
 struct TaskBriefInfo
 {
@@ -55,6 +58,7 @@ struct TaskBriefInfo
 inline BlobStreamWriter& operator<<(BlobStreamWriter& writer, const TaskBriefInfo& val) { val.serialize(writer); return writer; }
 inline bool operator>>(BlobStreamReader& reader, TaskBriefInfo& val) { return val.deserialize(reader); }
 
+
 struct TaskRunInfo
 {
     TaskID id;
@@ -66,6 +70,7 @@ struct TaskRunInfo
 
 inline BlobStreamWriter& operator<<(BlobStreamWriter& writer, const TaskRunInfo& val) { val.serialize(writer); return writer; }
 inline bool operator>>(BlobStreamReader& reader, TaskRunInfo& val) { return val.deserialize(reader); }
+
 
 class TaskServer
 {
@@ -86,6 +91,7 @@ private:
     volatile bool m_running;
 };
 
+
 class TaskClient
 {
 public:
@@ -95,7 +101,7 @@ public:
     Optional<TaskExecutable> getTaskExecutable(TaskID id);
     Optional<TaskSchedule> getTaskSchedule(TaskID id);
     Optional<TaskStatus> getTaskStatus(TaskID id);
-	Optional<bool> heartbeatAndCheckWasTaskCanceled(TaskID id);
+    Optional<bool> heartbeatAndCheckWasTaskCanceled(TaskID id);
     Optional<std::vector<TaskBriefInfo>> getTasksByStates(const std::set<TaskState>& states);
     Optional<TaskStats> getStats();
 

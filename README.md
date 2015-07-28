@@ -1,23 +1,18 @@
-## Kickoff - Efficient task graph scheduler for "heterogeneous" distributed compute clusters
+## Kickoff - Simple and efficient task scheduler for "heterogeneous" compute clusters
 
 A few nice features Kickoff provides:
 
 * Fully generic, cross platform, and language/framework-agnostic task scheduler
 * Extremely efficient (written in pure C++) and scales easily to millions of tasks.
 * Simple setup: Launch a server and add workers. Kickoff requires NO configuration.
-* Supports arbitrary dependency graphs (e.g. not just map-reduce).
 * Heterogeneous: Each task and worker specifies which "affinities" it needs/supports.
-
-Kickoff works great for a wide range of workflows, ranging from massively distributed computing with map-reduce style
-algorithm, to simple and quick task queues, or "cloud make" flows.
 
 For more detail and documentation, simply run "kickoff" after building, and read the help screen.
 
 ### NOTE
 
-Kickoff is a work in progress project and hasn't been tested extensively. It's functional and very fast but 
-additional work is being done to make it even more efficient. Also, it works on Windows, and Linux support 
-is planned (and should be fairly simple) but not finished right now.
+Kickoff is a work in progress project and hasn't been tested extensively. Also, it works on Windows, 
+and Linux support is planned (and should be fairly simple) but not finished right now.
 
 ### Examples
 
@@ -48,7 +43,3 @@ You can request runtime status info about a particular task via:
 And finally, you may choose to cancel tasks via:
 
 `kickoff cancel <task id> -server <server ip address>`
-
-Not shown here is Kickoff's ability to handle arbitrary dependency graphs. This simply means that any task may
-give a list of tasks that must complete before it's allowed to run. In such cases, cancel has a slightly different
-behavior in that canceling a task will not only cancel that task alone but all tasks that depend on it.

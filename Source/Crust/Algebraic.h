@@ -76,6 +76,38 @@ public:
         return false;
     }
 
+    T1* tryGetFirst()
+    {
+        if (m_hasFirst) {
+            return asT1();
+        }
+        return nullptr;
+    }
+
+    T2* tryGetSecond()
+    {
+        if (m_hasFirst) {
+            return asT2();
+        }
+        return nullptr;
+    }
+
+    const T1* tryGetFirst() const
+    {
+        if (m_hasFirst) {
+            return asT1();
+        }
+        return nullptr;
+    }
+
+    const T2* tryGetSecond() const
+    {
+        if (m_hasFirst) {
+            return asT2();
+        }
+        return nullptr;
+    }
+
     Either<T1, T2>& operator= (const Either<T1, T2>& other)
     {
         if (&other == this) { return *this; }
@@ -132,109 +164,6 @@ private:
     const T2* asT2() const { return reinterpret_cast<const T2*>(m_data); }
 };
 
-// Reference implementation (less efficient)
-/*template<class T1, class T2>
-class Either
-{
-public:
-	Either(const T1& val)
-		: m_t1(std::make_unique<T1>(val))
-	{
-		m_hasFirst = true;
-	}
-
-	Either(const T2& val)
-		: m_t2(std::make_unique<T2>(val))
-	{
-		m_hasFirst = false;
-	}
-
-	Either(T1&& val)
-		: m_t1(std::make_unique<T1>(val))
-	{
-		m_hasFirst = true;
-	}
-
-	Either(T2&& val)
-		: m_t2(std::make_unique<T2>(val))
-	{
-		m_hasFirst = false;
-	}
-
-	void operator= (const Either& other)
-	{
-		m_hasFirst = other.m_hasFirst;
-		if (other.m_hasFirst) {
-			m_t1.reset(new T1(*other.m_t1));
-			m_t2.reset();
-		}
-		else {
-			m_t2.reset(new T2(*other.m_t2));
-			m_t1.reset();
-		}
-	}
-
-	Either(const Either& other)
-	{
-		m_hasFirst = other.m_hasFirst;
-		if (other.m_hasFirst) {
-			m_t1.reset(new T1(*other.m_t1));
-		}
-		else {
-			m_t2.reset(new T2(*other.m_t2));
-		}
-	}
-
-	~Either()
-	{
-	}
-
-	bool hasFirst() const { return m_hasFirst; }
-
-	void unwrap(std::function<void(const T1&)> handleFirst, std::function<void(const T2&)> handleSecond) const
-	{
-		if (m_hasFirst) {
-			handleFirst(*m_t1);
-		}
-		else {
-			handleSecond(*m_t2);
-		}
-	}
-
-	void unwrap(std::function<void(T1&)> handleFirst, std::function<void(T2&)> handleSecond)
-	{
-		if (m_hasFirst) {
-			handleFirst(*m_t1);
-		}
-		else {
-			handleSecond(*m_t2);
-		}
-	}
-
-	bool tryGet(T1& out) const
-	{
-		if (m_hasFirst) {
-			out = *m_t1;
-			return true;
-		}
-		return false;
-	}
-
-	bool tryGet(T2& out) const
-	{
-		if (!m_hasFirst) {
-			out = *m_t2;
-			return true;
-		}
-		return false;
-	}
-
-private:
-	std::unique_ptr<T1> m_t1;
-	std::unique_ptr<T2> m_t2;
-	bool m_hasFirst;
-};*/
-
 
 // Option type -- essentially just syntactic sugar wrapper for Either<T, Nothing>. This means you can assign
 // an Option<T> to either a T or a Nothing and it should compile without the need to manually cast the RHS to an Optional.
@@ -250,29 +179,17 @@ public:
     Optional(const T& val) : m_value(val) {}
     Optional(T&& val) : m_value(val) {}
 
-	void operator= (const Optional& other)
-	{
-		m_value = other.m_value;
-	}
+    void operator= (const Optional& other)
+    {
+        m_value = other.m_value;
+    }
 
     bool hasValue() const { return m_value.hasFirst(); }
 
-    bool tryUnwrap(std::function<void(const T&)> handleValue) const
-    {
-        m_value.unwrap(handleValue, [](const Nothing&){});
-        return hasValue();
-    }
+    bool tryGet(T& out) const { return m_value.tryGet(out); }
 
-    bool tryUnwrap(std::function<void(T&)> handleValue)
-    {
-        m_value.unwrap(handleValue, [](const Nothing&){});
-        return hasValue();
-    }
-
-    bool tryGet(T& out) const
-    {
-        return m_value.tryGet(out);
-    }
+    T* tryGet() { return m_value.tryGetFirst(); }
+    const T* tryGet() const { return m_value.tryGetFirst(); }
 
     T orDefault(const T& defaultVal = T()) const
     {

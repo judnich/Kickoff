@@ -37,11 +37,11 @@ struct TaskExecutable
 inline BlobStreamWriter& operator<<(BlobStreamWriter& writer, const TaskExecutable& val) { val.serialize(writer); return writer; }
 inline bool operator>>(BlobStreamReader& reader, TaskExecutable& val) { return val.deserialize(reader); }
 
+
 // This encapsulates all the information on when/where to run a task
 struct TaskSchedule
 {
     std::vector<PooledString> affinities; // "affinity" strings that describe workers compatible with this task
-    std::vector<TaskID> dependencies; // a list of tasks that must complete before this task may run
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -52,15 +52,16 @@ struct TaskSchedule
 inline BlobStreamWriter& operator<<(BlobStreamWriter& writer, const TaskSchedule& val) { val.serialize(writer); return writer; }
 inline bool operator>>(BlobStreamReader& reader, TaskSchedule& val) { return val.deserialize(reader); }
 
+
 // These task states are simply conveniences for the user when inspecting a Task object. Internal state is NOT
-// stored via a TaskState value, but with Optional<TaskRunStatus> data and Task::m_unsatisfiedDependencies
-// (purely used to determine TaskState::Waiting vs TaskState::Ready).
+// stored via a TaskState value, but with Optional<TaskRunStatus> data.
 enum class TaskState : uint8_t
 {
-    Waiting, Ready, Running, Canceling, Canceled, Completed
+    Pending, Running, Canceling
 };
 
 std::string toString(TaskState state);
+
 
 // This struct describes status information for tasks that are NOT pending; e.g. either running, or finished.
 struct TaskRunStatus
@@ -73,8 +74,6 @@ struct TaskRunStatus
     std::time_t startTime;
     // This tracks the last time the worker that is running this task was heard from (used to timeout tasks)
     std::time_t heartbeatTime;
-    // If set, this marks the time when the task completed (either naturally or via cancellation). If not set, then the task is still running.
-    Optional<std::time_t> endTime;
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -83,14 +82,13 @@ struct TaskRunStatus
 inline BlobStreamWriter& operator<<(BlobStreamWriter& writer, const TaskRunStatus& val) { val.serialize(writer); return writer; }
 inline bool operator>>(BlobStreamReader& reader, TaskRunStatus& val) { return val.deserialize(reader); }
 
+
 // This struct describes the runtime status of a task, i.e. when it was enqueued, when it started running (if it has), etc.
 struct TaskStatus
 {
     std::time_t createTime; // has no functional effect on task execution
     Optional<TaskRunStatus> runStatus; // if no value exists, then the task is still pending
-    int unsatisfiedDependencies; // counts how many of this task's dependency tasks are still unfinished
-    
-    bool areDependenciesSatisfied() const { return unsatisfiedDependencies == 0; }
+
     TaskState getState() const; // this classifies the task into several disjoint states; see TaskState
 
     void serialize(BlobStreamWriter& writer) const;
@@ -101,6 +99,7 @@ struct TaskStatus
 
 inline BlobStreamWriter& operator<<(BlobStreamWriter& writer, const TaskStatus& val) { val.serialize(writer); return writer; }
 inline bool operator>>(BlobStreamReader& reader, TaskStatus& val) { return val.deserialize(reader); }
+
 
 // This is a simple structure to group together all the information needed to start a task
 struct TaskCreateInfo
@@ -117,15 +116,14 @@ inline bool operator>>(BlobStreamReader& reader, TaskCreateInfo& val) { return v
 
 class TaskDB;
 
+
 // Main task class not only provides (private, shared only with TaskDatabase) methods to change task run state 
 // information, but tracks additional data about graph connectivity to enable knowing when a task becomes ready 
 // in constant time.
 class Task : public std::enable_shared_from_this<Task>
 {
 public:
-    ~Task();
-    Task() {} // do not use manually, use TaskDatabase::createTask() instead
-    static TaskPtr create(TaskID id, const TaskCreateInfo& startInfo, const TaskDatabase& db); // called from TaskDatabase::createTask(). use that instead.
+    Task(TaskID id, const TaskCreateInfo& startInfo);
     
     TaskID getID() const { return m_id; }
     std::string getHexID() const;
@@ -142,13 +140,9 @@ private:
     TaskSchedule m_schedule; // where and when to run the task
     TaskStatus m_status;
 
-    std::vector<TaskWeakPtr> m_descendants;
-    std::vector<TaskPtr> m_dependencies; // cached strong pointers to children (vs just IDs, as stored in m_config.schedule.dependencies)
-
-    bool markStarted(const std::string& workerName);
-    bool markShouldCancel(TaskDatabase& callback);
-    bool markFinished(TaskDatabase& callback);
-    bool heartbeat();
+    void markStarted(const std::string& workerName);
+    bool markShouldCancel();
+    void heartbeat();
 };
 
 
@@ -158,9 +152,9 @@ struct TaskStats
 {
     TaskStats();
 
-    int numWaiting;
-    int numReady;
+    int numPending;
     int numRunning;
+    int numCanceling;
     uint64_t numFinished;
 };
 
@@ -169,14 +163,14 @@ class TaskDatabase
 public:
     TaskPtr getTaskByID(TaskID id) const;
     std::vector<TaskPtr> getTasksByStates(const std::set<TaskState>& states) const;
-	int getTotalTaskCount() const;
+    int getTotalTaskCount() const;
     TaskStats getStats() const { return m_stats; }
 
     TaskPtr createTask(const TaskCreateInfo& startInfo);
     TaskPtr takeTaskToRun(const std::string& workerName, const std::vector<std::string>& affinities);
-    bool heartbeatTask(TaskPtr task);
-    bool markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
-    bool markTaskShouldCancel(TaskPtr task);
+    void heartbeatTask(TaskPtr task);
+    void markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
+    void markTaskShouldCancel(TaskPtr task);
 
     void cleanupZombieTasks(std::time_t heartbeatTimeoutSeconds);
 
@@ -185,9 +179,6 @@ private:
 
     TaskID getUnusedTaskID() const;
     bool cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeoutSeconds);
-
-    void notifyTaskReady(TaskPtr task);
-    void notifyTaskCompleted(TaskPtr task);
 
     std::map<PooledString, std::set<TaskID>> m_readyTasksPerAffinity;
     TasksByID m_allTasks;

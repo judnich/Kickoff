@@ -133,21 +133,21 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             return reply;
         }
 
-		case TaskRequestType::GetStatus: {
-			TaskID id;
-			if (!(request >> id)) { break; }
-			auto task = m_db.getTaskByID(id);
+        case TaskRequestType::GetStatus: {
+            TaskID id;
+            if (!(request >> id)) { break; }
+            auto task = m_db.getTaskByID(id);
 
-			if (!task) {
-				reply << TaskReplyType::Failed;
-			}
-			else {
-				reply << TaskReplyType::Success;
-				auto status = task->getStatus();
-				reply << status;
-			}
-			return reply;
-		}
+            if (!task) {
+                reply << TaskReplyType::Failed;
+            }
+            else {
+                reply << TaskReplyType::Success;
+                auto status = task->getStatus();
+                reply << status;
+            }
+            return reply;
+        }
 
         case TaskRequestType::GetStats: {
             if (request.hasMore()) { break; }
@@ -158,33 +158,33 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             return reply;
         }
 
-		case TaskRequestType::HeartbeatAndCheckWasTaskCanceled: {
-			TaskID id;
-			if (!(request >> id)) { break; }
-			auto task = m_db.getTaskByID(id);
+        case TaskRequestType::HeartbeatAndCheckWasTaskCanceled: {
+            TaskID id;
+            if (!(request >> id)) { break; }
+            auto task = m_db.getTaskByID(id);
 
-			if (!task) {
-				reply << TaskReplyType::Failed;
-			}
-			else {
-				reply << TaskReplyType::Success;
+            if (!task) {
+                reply << TaskReplyType::Failed;
+            }
+            else {
+                reply << TaskReplyType::Success;
                 m_db.heartbeatTask(task);
 
-				bool wasCanceled = false;
-                task->getStatus().runStatus.tryUnwrap([&wasCanceled](const TaskRunStatus& runStatus) {
-                    if (runStatus.wasCanceled) { wasCanceled = true; }
-                });
+                bool wasCanceled = false;
+                if (auto* runStatus = task->getStatus().runStatus.tryGet()) {
+                    if (runStatus->wasCanceled) { wasCanceled = true; }
+                }
 
-				reply << wasCanceled;
-			}
-			return reply;
-		}
+                reply << wasCanceled;
+            }
+            return reply;
+        }
 
         case TaskRequestType::GetTasksByStates: {
-			if (m_db.getTotalTaskCount() > MAX_STATUS_TASKS) {
-				reply << TaskReplyType::Failed;
-				return reply;
-			}
+            if (m_db.getTotalTaskCount() > MAX_STATUS_TASKS) {
+                reply << TaskReplyType::Failed;
+                return reply;
+            }
 
             std::set<TaskState> states;
             TaskState state;
@@ -214,9 +214,9 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
                 reply << TaskReplyType::Failed;
             }
             else {
-				reply << TaskReplyType::Success;
-				reply << newTask->getID();
-			}
+                reply << TaskReplyType::Success;
+                reply << newTask->getID();
+            }
             return reply;
         }
 
@@ -231,12 +231,12 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             if (affinities.empty()) { break; }
             auto task = m_db.takeTaskToRun(machineName, affinities);
             if (task) {
-				TaskRunInfo info;
-				info.id = task->getID();
-				info.executable = task->getExecutable();
+                TaskRunInfo info;
+                info.id = task->getID();
+                info.executable = task->getExecutable();
 
-				reply << TaskReplyType::Success;
-				reply << info;
+                reply << TaskReplyType::Success;
+                reply << info;
             }
             else {
                 reply << TaskReplyType::Failed;
@@ -371,19 +371,19 @@ Optional<TaskStatus> TaskClient::getTaskStatus(TaskID id)
 
 Optional<bool> TaskClient::heartbeatAndCheckWasTaskCanceled(TaskID id)
 {
-	BlobStreamWriter request;
-	request << TaskRequestType::HeartbeatAndCheckWasTaskCanceled;
-	request << id;
+    BlobStreamWriter request;
+    request << TaskRequestType::HeartbeatAndCheckWasTaskCanceled;
+    request << id;
 
-	ReplyData reply = getReplyToRequest(request);
-	if (reply.type == TaskReplyType::Success) {
-		bool wasCanceled;
-		if (reply.reader >> wasCanceled) {
-			return std::move(wasCanceled);
-		}
-	}
+    ReplyData reply = getReplyToRequest(request);
+    if (reply.type == TaskReplyType::Success) {
+        bool wasCanceled;
+        if (reply.reader >> wasCanceled) {
+            return std::move(wasCanceled);
+        }
+    }
 
-	return Nothing();
+    return Nothing();
 }
 
 Optional<std::vector<TaskBriefInfo>> TaskClient::getTasksByStates(const std::set<TaskState>& states)
@@ -403,9 +403,9 @@ Optional<std::vector<TaskBriefInfo>> TaskClient::getTasksByStates(const std::set
             tasks.push_back(info);
         }
     }
-	else {
-		return Nothing();
-	}
+    else {
+        return Nothing();
+    }
 
     return tasks;
 }

@@ -100,7 +100,7 @@ uint64_t hashData(ArrayView<uint8_t> data)
 Optional<std::vector<uint8_t>> readFileData(const std::string& filename)
 {
     FILE* f;
-	errno_t result = fopen_s(&f, filename.c_str(), "rb");
+    errno_t result = fopen_s(&f, filename.c_str(), "rb");
     if (result != 0 || !f) { return Nothing(); }
 
     fseek(f, 0, SEEK_END);
@@ -121,7 +121,7 @@ Optional<std::vector<uint8_t>> readFileData(const std::string& filename)
 bool writeFileData(ArrayView<uint8_t> data, const std::string& filename)
 {
     FILE* f;
-	errno_t result = fopen_s(&f, filename.c_str(), "wb");
+    errno_t result = fopen_s(&f, filename.c_str(), "wb");
     if (result != 0 || !f) { return false; }
 
     if (fwrite(&data[0], data.size(), 1, f) != 1) {
@@ -130,7 +130,7 @@ bool writeFileData(ArrayView<uint8_t> data, const std::string& filename)
     }
 
     fclose(f);
-	return true;
+    return true;
 }
 
 std::string getFileExtension(const std::string& path)
@@ -172,7 +172,7 @@ std::string getMachineName()
 
 bool makeDirectory(const std::string& dirPath)
 {
-	return CreateDirectory(stringToWstring(dirPath).c_str(), NULL) == TRUE;
+    return CreateDirectory(stringToWstring(dirPath).c_str(), NULL) == TRUE;
 }
 
 bool deleteDirectory(const std::string& dirPath, bool recursive)

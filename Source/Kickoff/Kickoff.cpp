@@ -18,19 +18,18 @@ static TextContainer::Ptr helpMessage()
     auto doc = TextContainer::make();
     *doc += TextHeader::make("Kickoff");
 
-	*doc += TextContainer::make(2, 1, TextBlock::make(
-		"\"Kickoff\" is a minimalistic, highly efficient task dispatch system for \"heterogeneous\" compute clusters, "
-		"supporting arbitrary dependency graphs and mapping tasks to machines with matching capabilities. At its core, "
-		"launching a task with Kickoff simply implies including one small script file (along with optional per-task "
-		"command-line arguments to pass the script, which is then eventually executed on whatever compatible worker "
-		"process dequeues the task."
-		
-		"\n\nThis means Kickoff does NOT manage the distribution of large or even payloads such as your task's executable "
-		"content and input/output data (not even task stdout is stored by Kickoff). Instead, these are to be managed by "
-		"a separate system of your choice, which can be invoked via the scripts you launch. This separation is intentional, "
-		"keeping Kickoff focused on doing one task and only one task very well: dispatching tasks to workers."
+    *doc += TextContainer::make(2, 1, TextBlock::make(
+        "\"Kickoff\" is a minimalistic, highly efficient task dispatch system for \"heterogeneous\" compute clusters, "
+        "supporting mapping tasks to machines with matching capabilities. At its core, launching a task with Kickoff "
+        "simply implies including one small script file (along with optional per-task command-line arguments to pass "
+        "the script, which is then eventually executed on whatever compatible worker process dequeues the task."
+        
+        "\n\nThis means Kickoff does NOT manage the distribution of large or even payloads such as your task's executable "
+        "content and input/output data (not even task stdout is stored by Kickoff). Instead, these are to be managed by "
+        "a separate system of your choice, which can be invoked via the scripts you launch. This separation is intentional, "
+        "keeping Kickoff focused on doing one task and only one task very well: dispatching tasks to workers."
 
-		"\n\nWorker processes can be started anywhere and in any quantity, as long as they have network "
+        "\n\nWorker processes can be started anywhere and in any quantity, as long as they have network "
         "access to the central server. The \"heterogeneous\" part comes from Kickoff's \"affinity\" system, which effectively "
         "allows machine capabilities to be specified per-task, so they\'re mapped to appropriate machines. This affinity "
         "system is very simple and fully generic, allowing you to define your own capability groups ad-hoc (see below). "
@@ -40,8 +39,8 @@ static TextContainer::Ptr helpMessage()
 
     *doc += usageMessage(
         "new <script file> [args] [-interpreter <executable>]\n"
-		"  -affinity <affinity tags separated by space or comma>\n"
-		"  [-depend <dependency list>] -server <database address>\n");
+        "  -affinity <affinity tags separated by space or comma>\n"
+        "  -server <database address>\n");
     *doc += usageMessage("cancel <task id> -server <database address");
     *doc += usageMessage("info <task id> -server <database address>");
     *doc += usageMessage("list -server <database address>");
@@ -58,23 +57,11 @@ static TextContainer::Ptr helpMessage()
     ));
 
     *doc += TextContainer::make(2, 1, TextBlock::make(
-        "You can optionally provide a string label to associate with the task to easily identify it in a list. This has no "
-        "functional effect. Setting dependencies and affinities do: A task won't run until all its dependencies have finished, "
-        "and a task will only run on machines which are tagged with at least one of the affinity groups you specify.\n"
-    ));
-
-    *doc += TextContainer::make(2, 1, TextBlock::make(
         "When a worker is launched, one or more affinity tags (separated by space) must be given. Then, that worker will only "
         "run tasks with at least one intersecting affinity tags. In this way, you can customize how you manage which machine(s) to "
         "run tasks on. For example, you might have one tag for 'cuda' on machines with CUDA capable GPUs; then launching tasks which "
         "require CUDA acceleration with the tag 'cuda' will ensure they will only run on appropriate machines."
     ));
-
-	*doc += TextContainer::make(2, 1, TextBlock::make(
-		"Notes: When you cancel a task, all its dependencies will be immediately canceled as well. The status command will only "
-		"work if the number of tasks is relatively small; otherwise the server will refuse to give a list; this is intentional "
-		"as the \"status\" command is more of a debugging tool for small scale systems and not something to be used at scale."
-		));
 
     return std::move(doc);
 }
@@ -83,37 +70,17 @@ std::vector<std::string> parseAffinities(const CommandArgs& args)
 {
     std::string str = args.expectOptionValue("affinity");
     std::vector<std::string> affinities = splitString(str, " ;,", false);
-	return affinities;
+    return affinities;
 }
 
 std::vector<PooledString> toPooledStrings(std::vector<std::string>&& strings)
 {
-	std::vector<PooledString> pooledStrings;
-	for (auto& str : strings) {
-		pooledStrings.push_back(str);
-	}
-
-	return std::move(pooledStrings);
-}
-
-std::vector<TaskID> parseDependencies(const CommandArgs& args)
-{
-    std::string str = args.getOptionValue("depend");
-    std::vector<std::string> depStrs = splitString(str, " ;,", false);
-    std::vector<TaskID> depIDs;
-
-    for (auto& depStr : depStrs) {
-        auto optVal = hexStringToUint64(depStr);
-        TaskID taskID;
-        if (optVal.tryGet(taskID)) {
-            depIDs.push_back(taskID);
-        }
-        else {
-            printError("Could not parse dependency task ID (should be hexadecimal): \"" + depStr + "\"");
-        }
+    std::vector<PooledString> pooledStrings;
+    for (auto& str : strings) {
+        pooledStrings.push_back(str);
     }
 
-    return depIDs;
+    return std::move(pooledStrings);
 }
 
 std::string inferInterpreter(const std::string& scriptFilename)
@@ -210,7 +177,6 @@ int main(int argc, char* argv[])
 
         TaskCreateInfo info;
         info.schedule.affinities = toPooledStrings(parseAffinities(args));
-        info.schedule.dependencies = parseDependencies(args);
         info.executable.script = scriptFileData.orDefault(std::vector<uint8_t>());
         info.executable.args = scriptArgs;
         info.executable.interpreter = args.getOptionValue("interpreter", inferInterpreter(scriptFilename));
@@ -241,7 +207,7 @@ int main(int argc, char* argv[])
             return -1;
         }
 
-		TaskClient client(address.ip, address.port);
+        TaskClient client(address.ip, address.port);
         if (!client.markTaskShouldCancel(taskID)) {
             printError("Failed mark task for cancellation. Task may not exist (e.g. was already canceled, finished, or never started).");
             return -1;
@@ -260,7 +226,7 @@ int main(int argc, char* argv[])
             return -1;
         }
 
-		TaskClient client(address.ip, address.port);
+        TaskClient client(address.ip, address.port);
 
         auto optStatus = client.getTaskStatus(taskID);
         auto optSchedule = client.getTaskSchedule(taskID);
@@ -275,8 +241,7 @@ int main(int argc, char* argv[])
 
         auto state = status.getState();
         TextColor statusColor, statusColorBright;
-        if (state == TaskState::Ready) { statusColorBright = TextColor::LightCyan; statusColor = TextColor::Cyan; }
-        else if (state == TaskState::Waiting) { statusColorBright = TextColor::White; statusColor = TextColor::Gray; }
+        if (state == TaskState::Pending) { statusColorBright = TextColor::LightCyan; statusColor = TextColor::Cyan; }
         else if (state == TaskState::Running) { statusColorBright = TextColor::LightGreen; statusColor = TextColor::Green; }
         else if (state == TaskState::Canceling) { statusColorBright = TextColor::LightRed; statusColor = TextColor::Red; }
         else { fail("Unexpected task state from server"); }
@@ -294,8 +259,7 @@ int main(int argc, char* argv[])
         TaskClient client(address.ip, address.port);
 
         std::set<TaskState> states;
-        states.insert(TaskState::Waiting);
-        states.insert(TaskState::Ready);
+        states.insert(TaskState::Pending);
         states.insert(TaskState::Running);
         states.insert(TaskState::Canceling);
 
@@ -315,8 +279,7 @@ int main(int argc, char* argv[])
         for (auto& task : tasks) {
             auto state = task.status.getState();
             TextColor statusColor, statusColorBright;
-            if (state == TaskState::Ready) { statusColorBright = TextColor::LightCyan; statusColor = TextColor::Cyan; }
-            else if (state == TaskState::Waiting) { statusColorBright = TextColor::White; statusColor = TextColor::Gray; }
+            if (state == TaskState::Pending) { statusColorBright = TextColor::LightCyan; statusColor = TextColor::Cyan; }
             else if (state == TaskState::Running) { statusColorBright = TextColor::LightGreen; statusColor = TextColor::Green; }
             else if (state == TaskState::Canceling) { statusColorBright = TextColor::LightRed; statusColor = TextColor::Red; }
             else { fail("Unexpected task state from server"); }
@@ -341,17 +304,17 @@ int main(int argc, char* argv[])
             return -1;
         }
 
-        (ColoredString(std::to_string(stats.numWaiting), TextColor::LightYellow) + ColoredString(" tasks waiting\n", TextColor::Yellow)).print();
-        (ColoredString(std::to_string(stats.numReady), TextColor::LightCyan) + ColoredString(" tasks ready\n", TextColor::Cyan)).print();
+        (ColoredString(std::to_string(stats.numPending), TextColor::LightCyan) + ColoredString(" tasks pending\n", TextColor::Cyan)).print();
         (ColoredString(std::to_string(stats.numRunning), TextColor::LightGreen) + ColoredString(" tasks running\n", TextColor::Green)).print();
+        (ColoredString(std::to_string(stats.numCanceling), TextColor::LightRed) + ColoredString(" tasks running\n", TextColor::Red)).print();
         (ColoredString(std::to_string(stats.numFinished), TextColor::LightMagenta) + ColoredString(" tasks finished.\n", TextColor::Magenta)).print();
     }
     else if (command == "worker") {
-		auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
-		auto affinities = parseAffinities(args);
+        auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
+        auto affinities = parseAffinities(args);
 
-		TaskClient client(address.ip, address.port);
-		TaskWorker worker(std::move(client), std::move(affinities));
+        TaskClient client(address.ip, address.port);
+        TaskWorker worker(std::move(client), std::move(affinities));
 
         gWorkerForInterruptHandler = &worker;
         signal(SIGINT, interruptHandler);
@@ -359,7 +322,7 @@ int main(int argc, char* argv[])
         worker.run();
 
         ColoredString("Worker was gracefully shut down!\n", TextColor::LightGreen).print();
-		return 0;
+        return 0;
     }
     else if (command == "server") {
         std::string portStr = args.getOptionValue("port", std::to_string(DEFAULT_TASK_SERVER_PORT));

@@ -26,24 +26,24 @@ void TaskWorker::run()
     ColoredString("Starting worker.\n", TextColor::Cyan).print();
     m_running = true;
 
-	int pollIntervalMS = 0;
-	while (m_running)
-	{
-		if (tryRunOneTask())
-		{
-			pollIntervalMS = 0;
-			ColoredString("Requesting next task\n", TextColor::Cyan).print();
-		}
-		else
-		{
-			ColoredString("Waiting for task (" + std::to_string(pollIntervalMS / 1000) + "s)\r", TextColor::Cyan).print();
+    int pollIntervalMS = 0;
+    while (m_running)
+    {
+        if (tryRunOneTask())
+        {
+            pollIntervalMS = 0;
+            ColoredString("Requesting next task\n", TextColor::Cyan).print();
+        }
+        else
+        {
+            ColoredString("Waiting for task (" + std::to_string(pollIntervalMS / 1000) + "s)\r", TextColor::Cyan).print();
             
             // While no tasks are ready, sleep for a little bit before checking again (at slowly increasing intervals)
             pollIntervalMS = clamp(pollIntervalMS, MIN_SERVER_POLL_MS, MAX_WAITING_POLL_INTERVAL_MS);
             std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMS));
-			pollIntervalMS = (pollIntervalMS + 1) + (pollIntervalMS / 4); // slow exponential slowdown
-		}
-	}
+            pollIntervalMS = (pollIntervalMS + 1) + (pollIntervalMS / 4); // slow exponential slowdown
+        }
+    }
 }
 
 void TaskWorker::shutdown()
@@ -66,21 +66,21 @@ bool TaskWorker::tryRunOneTask()
     std::string taskScriptFilePath = taskFolder + "/Task_" + toHexString(runInfo.id) + ".script";
     writeFileData(runInfo.executable.script.get(), taskScriptFilePath);
 
-	ProcessStartInfo startInfo;
-	startInfo.commandStr = runInfo.executable.interpreter.get() + " " + taskScriptFilePath + " " + runInfo.executable.args.get();
-	startInfo.workingDir = ".";
+    ProcessStartInfo startInfo;
+    startInfo.commandStr = runInfo.executable.interpreter.get() + " " + taskScriptFilePath + " " + runInfo.executable.args.get();
+    startInfo.workingDir = ".";
 
-	ColoredString("Starting task " + toHexString(runInfo.id) + "\n", TextColor::Green).print();
-	Process proc(startInfo);
+    ColoredString("Starting task " + toHexString(runInfo.id) + "\n", TextColor::Green).print();
+    Process proc(startInfo);
 
-	int pollIntervalSecondsMS = 0;
+    int pollIntervalSecondsMS = 0;
     int timeSleptBetweenHeartbeatMS = 0;
 
-	while (proc.isRunning())
-	{
+    while (proc.isRunning())
+    {
         // While the process is running, sleep for a little bit before checking again (at slowly increasing intervals)
         pollIntervalSecondsMS = clamp(pollIntervalSecondsMS, MIN_PROCESS_POLL_INTERVAL_MS, MAX_RUNNING_POLL_INTERVAL_MS);
-		std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalSecondsMS));
+        std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalSecondsMS));
         timeSleptBetweenHeartbeatMS += pollIntervalSecondsMS;
         pollIntervalSecondsMS = (pollIntervalSecondsMS + 1) + (pollIntervalSecondsMS / 2);
 
@@ -95,28 +95,28 @@ bool TaskWorker::tryRunOneTask()
                 break;
             }
         }
-	}
-	proc.wait();
+    }
+    proc.wait();
 
-	ColoredString("Finished task " + toHexString(runInfo.id) + "\n", TextColor::LightGreen).print();
-	if (!m_client.markTaskFinished(runInfo.id)) {
-		printWarning("Failed to mark task " + toHexString(runInfo.id) + " as finished!");
-	}
+    ColoredString("Finished task " + toHexString(runInfo.id) + "\n", TextColor::LightGreen).print();
+    if (!m_client.markTaskFinished(runInfo.id)) {
+        printWarning("Failed to mark task " + toHexString(runInfo.id) + " as finished!");
+    }
 
-	ColoredString("Deleting workspace folder for task " + toHexString(runInfo.id) + "\n", TextColor::Cyan).print();
+    ColoredString("Deleting workspace folder for task " + toHexString(runInfo.id) + "\n", TextColor::Cyan).print();
 
-	bool success = false;
-	for (int tries = 0; tries < 10; ++tries) {
-		if (deleteDirectory(taskFolder, true)) {
-			success = true;
-			break;
-		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
-	}
+    bool success = false;
+    for (int tries = 0; tries < 10; ++tries) {
+        if (deleteDirectory(taskFolder, true)) {
+            success = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
-	if (!success) {
-		ColoredString("Failed to delete workspace folder \"" + taskFolder + "\"!\n", TextColor::LightRed).print();
-	}
+    if (!success) {
+        ColoredString("Failed to delete workspace folder \"" + taskFolder + "\"!\n", TextColor::LightRed).print();
+    }
 
-	return true;
+    return true;
 }
