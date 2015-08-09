@@ -222,14 +222,13 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
 
         case TaskRequestType::TakeToRun: {
             std::vector<std::string> affinities;
-            std::string affinity, machineName;
-            if (!(request >> machineName)) { break; }
+            std::string affinity;
             while (request >> affinity) {
                 affinities.push_back(affinity);
             }
 
             if (affinities.empty()) { break; }
-            auto task = m_db.takeTaskToRun(machineName, affinities);
+            auto task = m_db.takeTaskToRun(affinities);
             if (task) {
                 TaskRunInfo info;
                 info.id = task->getID();
@@ -446,7 +445,6 @@ Optional<TaskRunInfo> TaskClient::takeTaskToRun(const std::vector<std::string>& 
 {
     BlobStreamWriter request;
     request << TaskRequestType::TakeToRun;
-    request << getMachineName();
     for (const auto& affin : affinities) {
         request << affin;
     }

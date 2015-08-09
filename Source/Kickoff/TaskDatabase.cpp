@@ -23,11 +23,10 @@ std::string Task::getHexID() const
     return toHexString(ArrayView<uint8_t>(reinterpret_cast<const uint8_t*>(&m_id), sizeof(m_id)));
 }
 
-void Task::markStarted(const std::string& workerName)
+void Task::markStarted()
 {
     if (!m_status.runStatus.hasValue()) {
         TaskRunStatus runStatus;
-        runStatus.workerName = workerName;
         runStatus.startTime = std::time(nullptr);
         runStatus.heartbeatTime = std::time(nullptr);
         runStatus.wasCanceled = false;
@@ -120,7 +119,7 @@ TaskPtr TaskDatabase::createTask(const TaskCreateInfo& info)
     return task;
 }
 
-TaskPtr TaskDatabase::takeTaskToRun(const std::string& workerName, const std::vector<std::string>& affinities)
+TaskPtr TaskDatabase::takeTaskToRun(const std::vector<std::string>& affinities)
 {
     // Try each affinity that could match one by one, starting at a random one. This randomness is necessary so
     // that tasks don't end up being dequeued with a preference for alphabetical order in their affinities.
@@ -153,7 +152,7 @@ TaskPtr TaskDatabase::takeTaskToRun(const std::string& workerName, const std::ve
         }
 
         // Then finally set it as running
-        readyTask->markStarted(workerName);
+        readyTask->markStarted();
     }
 
     return readyTask;
@@ -293,7 +292,6 @@ bool TaskCreateInfo::deserialize(BlobStreamReader& reader)
 
 void TaskRunStatus::serialize(BlobStreamWriter& writer) const
 {
-    writer << workerName;
     writer << wasCanceled;
     writer << startTime;
     writer << heartbeatTime;
@@ -301,7 +299,6 @@ void TaskRunStatus::serialize(BlobStreamWriter& writer) const
 
 bool TaskRunStatus::deserialize(BlobStreamReader& reader)
 {
-    if (!(reader >> workerName)) { return false; }
     if (!(reader >> wasCanceled)) { return false; }
     if (!(reader >> startTime)) { return false; }
     if (!(reader >> heartbeatTime)) { return false; }

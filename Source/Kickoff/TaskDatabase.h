@@ -66,8 +66,6 @@ std::string toString(TaskState state);
 // This struct describes status information for tasks that are NOT pending; e.g. either running, or finished.
 struct TaskRunStatus
 {
-    // This identifies the worker that is running this task, and how to contact it (via an 'ip:port' connection string)
-    PooledString workerName;
     // This does NOT mean the task has finished, just that it was marked for cancellation
     bool wasCanceled;
     // This marks the time the task started running on the worker that dequeued it
@@ -140,7 +138,7 @@ private:
     TaskSchedule m_schedule; // where and when to run the task
     TaskStatus m_status;
 
-    void markStarted(const std::string& workerName);
+    void markStarted();
     bool markShouldCancel();
     void heartbeat();
 };
@@ -167,7 +165,7 @@ public:
     TaskStats getStats() const { return m_stats; }
 
     TaskPtr createTask(const TaskCreateInfo& startInfo);
-    TaskPtr takeTaskToRun(const std::string& workerName, const std::vector<std::string>& affinities);
+    TaskPtr takeTaskToRun(const std::vector<std::string>& affinities);
     void heartbeatTask(TaskPtr task);
     void markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
     void markTaskShouldCancel(TaskPtr task);
