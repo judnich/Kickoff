@@ -1,2 +1,2 @@
 @echo off
-x64\Debug\Kickoff.exe %*
+x64\Release\Kickoff.exe %*

@@ -1,6 +1,6 @@
 #include "TaskWorker.h"
+#include "Process.h"
 #include "Crust/Util.h"
-#include "Crust/Process.h"
 #include "Crust/Error.h"
 #include <thread>
 #include <chrono>

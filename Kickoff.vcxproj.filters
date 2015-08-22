@@ -10,6 +10,9 @@
     <Filter Include="Kickoff Source">
       <UniqueIdentifier>{efd7352c-ef60-4521-92ec-b3145996ba07}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Payload %28Example Application%29">
+      <UniqueIdentifier>{033e1e99-f1cc-4d50-a920-60284e161a91}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\crust\FormattedText.cpp">
@@ -51,8 +54,8 @@
     <ClCompile Include="Source\Kickoff\TaskWorker.cpp">
       <Filter>Kickoff Source</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Crust\Process.cpp">
-      <Filter>Crust %28Template Library%29</Filter>
+    <ClCompile Include="Source\Kickoff\Process.cpp">
+      <Filter>Kickoff Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -104,8 +107,8 @@
     <ClInclude Include="Source\Kickoff\TaskWorker.h">
       <Filter>Kickoff Source</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Crust\Process.h">
-      <Filter>Crust %28Template Library%29</Filter>
+    <ClInclude Include="Source\Kickoff\Process.h">
+      <Filter>Kickoff Source</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -113,5 +116,11 @@
     <None Include="Source\Crust\README.md">
       <Filter>Crust %28Template Library%29</Filter>
     </None>
+    <None Include="Source\Payload\payload.py">
+      <Filter>Payload %28Example Application%29</Filter>
+    </None>
+    <None Include="Kickoff.cmd" />
+    <None Include="Payload.cmd" />
+    <None Include="Payload.json" />
   </ItemGroup>
 </Project>

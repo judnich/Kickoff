@@ -17,11 +17,11 @@
     <ClCompile Include="Source\Crust\PooledBlob.cpp" />
     <ClCompile Include="Source\Crust\PooledString.cpp" />
     <ClCompile Include="source\crust\FormattedText.cpp" />
-    <ClCompile Include="Source\Crust\Process.cpp" />
     <ClCompile Include="Source\Crust\Util.cpp" />
     <ClCompile Include="Source\External\MurmurHash2_64.cpp" />
     <ClCompile Include="source\kickoff\Kickoff.cpp" />
     <ClCompile Include="source\kickoff\Precomp.cpp" />
+    <ClCompile Include="Source\Kickoff\Process.cpp" />
     <ClCompile Include="Source\Kickoff\TaskDatabase.cpp" />
     <ClCompile Include="Source\Kickoff\TaskServer.cpp" />
     <ClCompile Include="Source\Kickoff\TaskWorker.cpp" />
@@ -35,19 +35,23 @@
     <ClInclude Include="Source\Crust\PooledBlob.h" />
     <ClInclude Include="Source\Crust\PooledString.h" />
     <ClInclude Include="source\crust\FormattedText.h" />
-    <ClInclude Include="Source\Crust\Process.h" />
     <ClInclude Include="Source\Crust\Util.h" />
     <ClInclude Include="Source\External\MurmurHash2_64.h" />
     <ClInclude Include="source\external\rlutil.h" />
     <ClInclude Include="Source\External\zmq.hpp" />
     <ClInclude Include="source\kickoff\Precomp.h" />
+    <ClInclude Include="Source\Kickoff\Process.h" />
     <ClInclude Include="Source\Kickoff\TaskDatabase.h" />
     <ClInclude Include="Source\Kickoff\TaskServer.h" />
     <ClInclude Include="Source\Kickoff\TaskWorker.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Kickoff.cmd" />
+    <None Include="Payload.cmd" />
+    <None Include="Payload.json" />
     <None Include="README.md" />
     <None Include="Source\Crust\README.md" />
+    <None Include="Source\Payload\payload.py" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{7D8CE7ED-6641-4FD6-AF01-4D775C410DB2}</ProjectGuid>
