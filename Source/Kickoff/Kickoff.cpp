@@ -6,10 +6,10 @@
 const int DEFAULT_TASK_SERVER_PORT = 3355;
 
 
-static TextContainer::Ptr usageMessage(const std::string& args)
+static TextContainer::Ptr usageMessage(const std::string& args, TextColor colorA = TextColor::LightGreen, TextColor colorB = TextColor::Green)
 {
     return TextContainer::make(2, 0, 
-        TextBlock::make(ColoredString("Kickoff ", TextColor::LightGreen) + ColoredString(args, TextColor::Green))
+        TextBlock::make(ColoredString("Kickoff ", colorA) + ColoredString(args, colorB))
     );
 }
 
@@ -19,21 +19,29 @@ static TextContainer::Ptr helpMessage()
     *doc += TextHeader::make("Kickoff");
 
     *doc += TextContainer::make(2, 1, TextBlock::make(
-        "\"Kickoff\" is a minimalistic, highly efficient task dispatch system for \"heterogeneous\" compute clusters, "
+        "\"Kickoff\" is a minimalistic, highly efficient task scheduler for \"heterogeneous\" compute clusters, "
         "supporting mapping tasks to machines with matching capabilities. At its core, launching a task with Kickoff "
-        "simply implies including one small script file (along with optional per-task command-line arguments to pass "
-        "the script, which is then eventually executed on whatever compatible worker process dequeues the task."
+        "simply implies queueing a command-line string to be executed on the worker that dequeues it. Beyond that, "
+        "the details just involve specifying how/when/where the task is preferred (or required) to execute."
         
         "\n\nThis means Kickoff does NOT manage the distribution of large or even payloads such as your task's executable "
         "content and input/output data (not even task stdout is stored by Kickoff). Instead, these are to be managed by "
         "a separate system of your choice, which can be invoked via the scripts you launch. This separation is intentional, "
-        "keeping Kickoff focused on doing one task and only one task very well: dispatching tasks to workers."
+        "keeping Kickoff focused on doing one task and only one task very well: scheduling tasks to workers."
 
-        "\n\nWorker processes can be started anywhere and in any quantity, as long as they have network "
-        "access to the central server. The \"heterogeneous\" part comes from Kickoff's \"resource tag\" system, which effectively "
-        "allows desired machine capabilities and resources to be specified per-task, so they\'re mapped to appropriate machines. "
-        "This resource tag system is very simple and fully generic, allowing you to define your own capability groups ad-hoc (see below). "
+        "\n\nWorker processes can be started anywhere and in any quantity, as long as they have network access to the "
+        "central server. The \"heterogeneous\" part comes from Kickoff's \"resource tag\" system, which effectively "
+        "allows you to specify what resources (e.g. GPU vs CPU) you require and/or prefer, and how much. "
+        "This resource tag system is very simple and fully generic, allowing you to define your own capability "
+        "groups ad-hoc via required resource tags, and prefer machines with cached data locality via the specification "
+        "of preferred resource tags."
+
+        "\n\nFor example, if your task requires a GPU and would prefer to have data object \"XYZ123\""
+        "already cached, you would probably launch the task via a command something like this:"
+        "\n\n"
     ));
+
+    *doc += usageMessage("new \"my_command\" -require GPU -want XYZ123 -server some_ip", TextColor::LightCyan, TextColor::Cyan);
 
     *doc += TextContainer::make(2, 1, TextBlock::make("Usage:\n\n", TextColor::White));
 
@@ -47,18 +55,6 @@ static TextContainer::Ptr helpMessage()
     *doc += usageMessage("stats -server <database address>");
     *doc += usageMessage("worker -server <database address> [-have <resource tags>]");
     *doc += usageMessage("server [-port <portnum>]");
-
-    *doc += TextContainer::make(2, 1, TextBlock::make(
-        "Enqueueing a task is fairly straightforward; you are expected to provide a script file which will be executed on the "
-        "worker that takes on this task, along with any optional command-line arguments to send the script. Your script is "
-        "responsible for synchronizing and inputs/outputs of your task, including the full task executables or scripts required "
-        "for this. Note that Kickoff auto-recognizes many script types by extension (e.g. .py, .sh, .cmd, .bat), but you may "
-        "optionally manually specify the command name of the interpreter to use.\n"
-    ));
-
-    *doc += TextContainer::make(2, 1, TextBlock::make(
-        "When a worker is launched, one or more resource tags (separated by space) may be given."
-    ));
 
     return std::move(doc);
 }
