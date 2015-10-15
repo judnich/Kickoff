@@ -30,22 +30,22 @@ static TextContainer::Ptr helpMessage()
         "keeping Kickoff focused on doing one task and only one task very well: dispatching tasks to workers."
 
         "\n\nWorker processes can be started anywhere and in any quantity, as long as they have network "
-        "access to the central server. The \"heterogeneous\" part comes from Kickoff's \"affinity\" system, which effectively "
-        "allows machine capabilities to be specified per-task, so they\'re mapped to appropriate machines. This affinity "
-        "system is very simple and fully generic, allowing you to define your own capability groups ad-hoc (see below). "
+        "access to the central server. The \"heterogeneous\" part comes from Kickoff's \"resource tag\" system, which effectively "
+        "allows desired machine capabilities and resources to be specified per-task, so they\'re mapped to appropriate machines. "
+        "This resource tag system is very simple and fully generic, allowing you to define your own capability groups ad-hoc (see below). "
     ));
 
     *doc += TextContainer::make(2, 1, TextBlock::make("Usage:\n\n", TextColor::White));
 
     *doc += usageMessage(
-        "new <script file> [args] [-interpreter <executable>]\n"
-        "  -affinity <affinity tags separated by space or comma>\n"
-        "  -server <database address>\n");
+        "new <command to execute> [args] -server <database address>\n"
+        "  -require <required resource tags separated by space or comma>\n"
+        "  -want <optional resource tags separated by space or comma>\n");
     *doc += usageMessage("cancel <task id> -server <database address");
     *doc += usageMessage("info <task id> -server <database address>");
     *doc += usageMessage("list -server <database address>");
     *doc += usageMessage("stats -server <database address>");
-    *doc += usageMessage("worker -server <database address> -affinity <affinity tags>");
+    *doc += usageMessage("worker -server <database address> [-have <resource tags>]");
     *doc += usageMessage("server [-port <portnum>]");
 
     *doc += TextContainer::make(2, 1, TextBlock::make(
@@ -57,20 +57,16 @@ static TextContainer::Ptr helpMessage()
     ));
 
     *doc += TextContainer::make(2, 1, TextBlock::make(
-        "When a worker is launched, one or more affinity tags (separated by space) must be given. Then, that worker will only "
-        "run tasks with at least one intersecting affinity tags. In this way, you can customize how you manage which machine(s) to "
-        "run tasks on. For example, you might have one tag for 'cuda' on machines with CUDA capable GPUs; then launching tasks which "
-        "require CUDA acceleration with the tag 'cuda' will ensure they will only run on appropriate machines."
+        "When a worker is launched, one or more resource tags (separated by space) may be given."
     ));
 
     return std::move(doc);
 }
 
-std::vector<std::string> parseAffinities(const CommandArgs& args)
+std::vector<std::string> parseResourceTags(const std::string& listStr)
 {
-    std::string str = args.expectOptionValue("affinity");
-    std::vector<std::string> affinities = splitString(str, " ;,", false);
-    return affinities;
+    std::vector<std::string> resourceTags = splitString(listStr, " ;,", false);
+    return resourceTags;
 }
 
 std::vector<PooledString> toPooledStrings(std::vector<std::string>&& strings)
@@ -81,24 +77,6 @@ std::vector<PooledString> toPooledStrings(std::vector<std::string>&& strings)
     }
 
     return std::move(pooledStrings);
-}
-
-std::string inferInterpreter(const std::string& scriptFilename)
-{
-    auto ext = getFileExtension(scriptFilename);
-    if (ext == ".py") {
-        return "python";
-    }
-    else if (ext == ".sh") {
-        return "bash";
-    }
-    else if (ext == ".bat" || ext == ".cmd") {
-        return "cmd";
-    }
-    else if (ext == ".js") {
-        return "node";
-    }
-    return "";
 }
 
 struct ServerAddress
@@ -162,37 +140,20 @@ int main(int argc, char* argv[])
         auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
         TaskClient client(address.ip, address.port);
 
-        auto scriptFilename = args.popUnnamedArg();
-        auto scriptFileData = readFileData(scriptFilename);
-        if (!scriptFileData.hasValue()) {
-            printError("Could not load script file \"" + scriptFilename + "\"");
-            return -1;
-        }
-
-        std::string scriptArgs = "";
+        std::string command = args.popUnnamedArg();
         while (args.getUnnamedArgCount() > 0) {
-            if (scriptArgs != "") { scriptArgs += " "; }
-            scriptArgs += args.popUnnamedArg();
+            if (command != "") { command += " "; }
+            command += args.popUnnamedArg();
         }
 
         TaskCreateInfo info;
-        info.schedule.affinities = toPooledStrings(parseAffinities(args));
-        info.executable.script = scriptFileData.orDefault(std::vector<uint8_t>());
-        info.executable.args = scriptArgs;
-        info.executable.interpreter = args.getOptionValue("interpreter", inferInterpreter(scriptFilename));
-
-        if (info.executable.interpreter.get() == "") {
-            printError("Could not infer interpreter for script extension \"" + getFileExtension(scriptFilename) + "\". Please specify via -interpreter.");
-            return -1;
-        }
+        info.schedule.requiredResources = toPooledStrings(parseResourceTags(args.getOptionValue("require")));
+        info.schedule.optionalResources = toPooledStrings(parseResourceTags(args.getOptionValue("want")));
+        info.executable.command = command;
 
         ColoredString("Creating task\n", TextColor::Cyan).print();
         auto result = client.createTask(info);
-        TaskID taskID;
-        if (!result.tryGet(taskID)) {
-            printError("Failed to create task.");
-            return -1;
-        }
+        TaskID taskID = result.orFail("Failed to create task.");
 
         (ColoredString("Success! Created task:\n", TextColor::Green) +
             ColoredString(toHexString(taskID), TextColor::LightGreen)).print();
@@ -201,11 +162,7 @@ int main(int argc, char* argv[])
     else if (command == "cancel") {
         auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
         auto taskIDStr = args.popUnnamedArg();
-        TaskID taskID;
-        if (!hexStringToUint64(taskIDStr).tryGet(taskID)) {
-            printError("Failed to parse hexadecimal task ID: " + taskIDStr);
-            return -1;
-        }
+        TaskID taskID = hexStringToUint64(taskIDStr).orFail("Failed to parse hexadecimal task ID: " + taskIDStr);
 
         TaskClient client(address.ip, address.port);
         if (!client.markTaskShouldCancel(taskID)) {
@@ -220,24 +177,15 @@ int main(int argc, char* argv[])
     else if (command == "info") {
         auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
         auto taskIDStr = args.popUnnamedArg();
-        TaskID taskID;
-        if (!hexStringToUint64(taskIDStr).tryGet(taskID)) {
-            printError("Failed to parse hexadecimal task ID: " + taskIDStr);
-            return -1;
-        }
+        TaskID taskID = hexStringToUint64(taskIDStr).orFail("Failed to parse hexadecimal task ID: " + taskIDStr);
 
         TaskClient client(address.ip, address.port);
 
         auto optStatus = client.getTaskStatus(taskID);
+        const auto& status = optStatus.refOrFail("Failed to retrieve task info. Task may not exist (e.g. was canceled, finished, or never started)");
+
         auto optSchedule = client.getTaskSchedule(taskID);
-
-        TaskStatus status;
-        TaskSchedule schedule;
-
-        if (!optSchedule.tryGet(schedule) || !optStatus.tryGet(status)) {
-            printError("Failed retrieve task info. Task may not exist (e.g. was canceled, finished, or never started).");
-            return -1;
-        }
+        const auto& schedule = optSchedule.refOrFail("Failed to retrieve task info. Internal error: Retrieved status but not schedule.");
 
         auto state = status.getState();
         TextColor statusColor, statusColorBright;
@@ -263,14 +211,9 @@ int main(int argc, char* argv[])
         states.insert(TaskState::Running);
         states.insert(TaskState::Canceling);
 
-        auto optTasks = client.getTasksByStates(states);
-
-        std::vector<TaskBriefInfo> tasks;
-        if (!optTasks.tryGet(tasks)) {
-            printError("Task list is not available because the total number of tasks is too large. This command is meant "
+        const auto& tasks = client.getTasksByStates(states).refOrFail(
+                "Task list is not available because the total number of tasks is too large. This command is meant "
                 "to be used as a debugging tool for small-scale deployments, not large scale clusters.");
-            return -1;
-        }
 
         TextHeader::make("Tasks Status")->print();
         printWarning("The status command is meant to be used as a debugging tool for small-scale deployments, not large scale clusters. "
@@ -298,11 +241,7 @@ int main(int argc, char* argv[])
         TaskClient client(address.ip, address.port);
         auto optStats = client.getStats();
 
-        TaskStats stats;
-        if (!optStats.tryGet(stats)) {
-            printError("Failed retrieve task server stats. Server may not be responding.");
-            return -1;
-        }
+        const auto& stats = client.getStats().refOrFail("Failed retrieve task server stats. Server may not be responding.");
 
         (ColoredString(std::to_string(stats.numPending), TextColor::LightCyan) + ColoredString(" tasks pending\n", TextColor::Cyan)).print();
         (ColoredString(std::to_string(stats.numRunning), TextColor::LightGreen) + ColoredString(" tasks running\n", TextColor::Green)).print();
@@ -311,7 +250,7 @@ int main(int argc, char* argv[])
     }
     else if (command == "worker") {
         auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
-        auto affinities = parseAffinities(args);
+        auto affinities = parseResourceTags(args.getOptionValue("have"));
 
         TaskClient client(address.ip, address.port);
         TaskWorker worker(std::move(client), std::move(affinities));

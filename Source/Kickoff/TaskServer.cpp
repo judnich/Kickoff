@@ -171,7 +171,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
                 m_db.heartbeatTask(task);
 
                 bool wasCanceled = false;
-                if (auto* runStatus = task->getStatus().runStatus.tryGet()) {
+                if (const auto* runStatus = task->getStatus().runStatus.ptrOrNull()) {
                     if (runStatus->wasCanceled) { wasCanceled = true; }
                 }
 
@@ -221,14 +221,13 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
         }
 
         case TaskRequestType::TakeToRun: {
-            std::vector<std::string> affinities;
-            std::string affinity;
-            while (request >> affinity) {
-                affinities.push_back(affinity);
+            std::vector<std::string> haveResources;
+            std::string resource;
+            while (request >> resource) {
+                haveResources.push_back(resource);
             }
 
-            if (affinities.empty()) { break; }
-            auto task = m_db.takeTaskToRun(affinities);
+            auto task = m_db.takeTaskToRun(haveResources);
             if (task) {
                 TaskRunInfo info;
                 info.id = task->getID();
@@ -441,12 +440,12 @@ Optional<TaskID> TaskClient::createTask(const TaskCreateInfo& startInfo)
     return Nothing();
 }
 
-Optional<TaskRunInfo> TaskClient::takeTaskToRun(const std::vector<std::string>& affinities)
+Optional<TaskRunInfo> TaskClient::takeTaskToRun(const std::vector<std::string>& haveResources)
 {
     BlobStreamWriter request;
     request << TaskRequestType::TakeToRun;
-    for (const auto& affin : affinities) {
-        request << affin;
+    for (const auto& resource : haveResources) {
+        request << resource;
     }
 
     ReplyData reply = getReplyToRequest(request);

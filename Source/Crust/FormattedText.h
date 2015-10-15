@@ -3,7 +3,7 @@
 #include <vector>
 #include <memory>
 #include <wchar.h>
-#include "Algebraic.h"
+#include "Optional.h"
 #include "Array.h"
 
 enum class TextColor

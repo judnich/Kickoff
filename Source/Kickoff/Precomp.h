@@ -4,7 +4,7 @@
 #include <tchar.h>
 #include <signal.h>
 
-#include "Crust/Algebraic.h"
+#include "Crust/Optional.h"
 #include "Crust/Array.h"
 #include "Crust/Error.h"
 #include "Crust/FormattedText.h"

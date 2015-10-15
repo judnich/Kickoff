@@ -6,7 +6,7 @@
 class TaskWorker
 {
 public:
-    TaskWorker(TaskClient& client, std::vector<std::string>&& affinities);
+    TaskWorker(TaskClient& client, std::vector<std::string>&& resources);
     ~TaskWorker();
 
     void run();
@@ -16,7 +16,7 @@ private:
     bool tryRunOneTask();
 
     TaskClient& m_client;
-    std::vector<std::string> m_affinities;
+    std::vector<std::string> m_resources;
     volatile bool m_running;
 };
 

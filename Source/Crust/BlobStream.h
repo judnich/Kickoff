@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "Array.h"
-#include "Algebraic.h"
+#include "Optional.h"
 #include "PooledString.h"
 #include "PooledBlob.h"
 

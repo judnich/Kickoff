@@ -106,7 +106,7 @@ public:
     Optional<TaskStats> getStats();
 
     Optional<TaskID> createTask(const TaskCreateInfo& startInfo);
-    Optional<TaskRunInfo> takeTaskToRun(const std::vector<std::string>& affinities);
+    Optional<TaskRunInfo> takeTaskToRun(const std::vector<std::string>& haveResources);
     bool markTaskFinished(TaskID task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
     bool markTaskShouldCancel(TaskID task);
 

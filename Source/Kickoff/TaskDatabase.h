@@ -6,7 +6,7 @@
 #include <map>
 #include <set>
 #include "Crust/Array.h"
-#include "Crust/Algebraic.h"
+#include "Crust/Optional.h"
 #include "Crust/PooledString.h"
 #include "Crust/PooledBlob.h"
 #include "Crust/BlobStream.h"
@@ -26,9 +26,7 @@ typedef uint64_t TaskID;
 // where <script_file> is a file containing the provided script data blob.
 struct TaskExecutable
 {
-    PooledString interpreter; // the executable name of the interpreter to run the script, e.g. python, sh, etc.
-    PooledBlob script; // the contents of a text script to pass to the interpreter
-    PooledString args; // arguments (e.g. usually to specify per-task variations) to pass to the script
+    PooledString command; // a command to run in the shell
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -41,7 +39,14 @@ inline bool operator>>(BlobStreamReader& reader, TaskExecutable& val) { return v
 // This encapsulates all the information on when/where to run a task
 struct TaskSchedule
 {
-    std::vector<PooledString> affinities; // "affinity" strings that describe workers compatible with this task
+    std::vector<PooledString> requiredResources; // required resource tags that workers must have to run this task
+    std::vector<PooledString> optionalResources; // optional resource tags that workers are preferred to have to run this task
+
+    uint32_t workerUsage_FixedPoint;
+    const uint32_t s_workerUsage_FixedPointMax = 0xFFFF;
+
+    float getWorkerUsageFraction() const { return float(workerUsage_FixedPoint) / float(s_workerUsage_FixedPointMax); }
+    void setWorkerUsageFraction(float fraction);
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -165,7 +170,7 @@ public:
     TaskStats getStats() const { return m_stats; }
 
     TaskPtr createTask(const TaskCreateInfo& startInfo);
-    TaskPtr takeTaskToRun(const std::vector<std::string>& affinities);
+    TaskPtr takeTaskToRun(const std::vector<std::string>& haveResources);
     void heartbeatTask(TaskPtr task);
     void markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
     void markTaskShouldCancel(TaskPtr task);
@@ -178,7 +183,9 @@ private:
     TaskID getUnusedTaskID() const;
     bool cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeoutSeconds);
 
-    std::map<PooledString, std::set<TaskID>> m_readyTasksPerAffinity;
+    std::map<PooledString, std::set<TaskID>> m_readyTasksPerRequiredResource;
+    std::set<TaskID> m_readyTasksWithNoRequirements;
+
     TasksByID m_allTasks;
     TaskStats m_stats;
 };

@@ -27,7 +27,7 @@
     <ClCompile Include="Source\Kickoff\TaskWorker.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="source\crust\Algebraic.h" />
+    <ClInclude Include="source\crust\Optional.h" />
     <ClInclude Include="source\crust\Array.h" />
     <ClInclude Include="Source\Crust\BlobStream.h" />
     <ClInclude Include="Source\Crust\CommandArgs.h" />
@@ -47,8 +47,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Kickoff.cmd" />
-    <None Include="Payload.cmd" />
-    <None Include="Payload.json" />
     <None Include="README.md" />
     <None Include="Source\Crust\README.md" />
     <None Include="Source\Payload\payload.py" />

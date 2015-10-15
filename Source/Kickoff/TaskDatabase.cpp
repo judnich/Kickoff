@@ -36,7 +36,7 @@ void Task::markStarted()
 
 bool Task::markShouldCancel()
 {
-    if (auto* runStatus = m_status.runStatus.tryGet()) {
+    if (auto* runStatus = m_status.runStatus.ptrOrNull()) {
         runStatus->wasCanceled = true;
         return true;
     }
@@ -46,7 +46,7 @@ bool Task::markShouldCancel()
 void Task::heartbeat()
 {
     // Update a running task's heartbeat timestamp
-    if (auto* runStatus = m_status.runStatus.tryGet()) {
+    if (auto* runStatus = m_status.runStatus.ptrOrNull()) {
         runStatus->heartbeatTime = std::time(nullptr);
     }
 }
@@ -111,43 +111,56 @@ TaskPtr TaskDatabase::createTask(const TaskCreateInfo& info)
     TaskPtr task = std::make_shared<Task>(id, info);
     m_allTasks[id] = task;
 
-    for (const auto& affinity : task->getSchedule().affinities) {
-        m_readyTasksPerAffinity[affinity].insert(task->getID());
+    for (const auto& resource : task->getSchedule().requiredResources) {
+        m_readyTasksPerRequiredResource[resource].insert(task->getID());
+    }
+    if (task->getSchedule().requiredResources.size() == 0)
+    {
+        m_readyTasksWithNoRequirements.insert(task->getID());
     }
 
     m_stats.numPending++;
     return task;
 }
 
-TaskPtr TaskDatabase::takeTaskToRun(const std::vector<std::string>& affinities)
+TaskPtr TaskDatabase::takeTaskToRun(const std::vector<std::string>& haveResources)
 {
-    // Try each affinity that could match one by one, starting at a random one. This randomness is necessary so
-    // that tasks don't end up being dequeued with a preference for alphabetical order in their affinities.
+    // Try each resource tag that could match one by one, starting at a random one. This randomness is necessary so
+    // that tasks don't end up being dequeued with a preference for alphabetical order in their resources.
     Optional<TaskID> foundID;
-    int offset = rand() % (int)affinities.size();
-    for (int i = 0; i < (int)affinities.size(); ++i) {
-        const auto& affinity = affinities[(i + offset) % (int)affinities.size()];
-        auto& readyTasks = m_readyTasksPerAffinity[affinity];
-        if (!readyTasks.empty()) {
-            foundID = *readyTasks.begin();
-            break;
-        }
+    if (haveResources.size() > 0)
+    {
+        int offset = rand() % (int)haveResources.size();
+        for (int i = 0; i < (int)haveResources.size(); ++i) {
+            const auto& resource = haveResources[(i + offset) % (int)haveResources.size()];
+            auto& readyTasks = m_readyTasksPerRequiredResource[resource];
+            if (!readyTasks.empty()) {
+                foundID = *readyTasks.begin();
+                break;
+            }
 
-        i = (i + 1) % (int)affinities.size();
+            i = (i + 1) % (int)haveResources.size();
+        }
+    }
+    else
+    {
+        if (!m_readyTasksWithNoRequirements.empty()) {
+            foundID = *m_readyTasksWithNoRequirements.begin();
+        }
     }
 
     // If a ready task was found, update its state
     TaskPtr readyTask;
-    TaskID readyTaskID;
-    if (foundID.tryGet(readyTaskID)) {
-        readyTask = getTaskByID(readyTaskID);
+    if (foundID.hasValue())
+    {
+        readyTask = getTaskByID(foundID.orDefault());
         assert(readyTask);
 
         m_stats.numPending--;
         m_stats.numRunning++;
 
         // Now that a ready task was found, remove it from the "ready tasks" sets
-        for (auto& readyTasks : m_readyTasksPerAffinity) {
+        for (auto& readyTasks : m_readyTasksPerRequiredResource) {
             readyTasks.second.erase(readyTask->getID());
         }
 
@@ -165,7 +178,7 @@ void TaskDatabase::heartbeatTask(TaskPtr task)
 
 void TaskDatabase::markTaskFinished(TaskPtr task)
 {
-    if (auto* runStatus = task->getStatus().runStatus.tryGet()) {
+    if (auto* runStatus = task->getStatus().runStatus.ptrOrNull()) {
         if (runStatus->wasCanceled) {
             m_stats.numCanceling--;
         }
@@ -175,9 +188,10 @@ void TaskDatabase::markTaskFinished(TaskPtr task)
         m_stats.numFinished++;
     }
 
-    for (const auto& affinity : task->getSchedule().affinities) {
-        m_readyTasksPerAffinity[affinity].erase(task->getID());
+    for (const auto& resource : task->getSchedule().requiredResources) {
+        m_readyTasksPerRequiredResource[resource].erase(task->getID());
     }
+    m_readyTasksWithNoRequirements.erase(task->getID());
     m_allTasks.erase(task->getID());
 }
 
@@ -201,7 +215,7 @@ bool TaskDatabase::cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeou
 {
     bool died = false;
 
-    if (auto* runStatus = task->getStatus().runStatus.tryGet()) {
+    if (auto* runStatus = task->getStatus().runStatus.ptrOrNull()) {
         std::time_t diff = std::time(nullptr) - runStatus->heartbeatTime;
         died = (diff >= heartbeatTimeoutSeconds);
     }
@@ -215,9 +229,8 @@ bool TaskDatabase::cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeou
 
 TaskState TaskStatus::getState() const
 {
-    TaskRunStatus runStatusVal;
-    if (runStatus.tryGet(runStatusVal)) {
-        return runStatusVal.wasCanceled ? TaskState::Canceling : TaskState::Running;
+    if (runStatus.hasValue()) {
+        return runStatus.orDefault().wasCanceled ? TaskState::Canceling : TaskState::Running;
     }
     else {
         return TaskState::Pending;
@@ -227,25 +240,31 @@ TaskState TaskStatus::getState() const
 
 void TaskExecutable::serialize(BlobStreamWriter& writer) const
 {
-    writer << interpreter;
-    writer << script;
-    writer << args;
+    writer << command;
 }
 
 bool TaskExecutable::deserialize(BlobStreamReader& reader)
 {
-    if (!(reader >> interpreter)) { return false; }
-    if (!(reader >> script)) { return false; }
-    if (!(reader >> args)) { return false; }
+    if (!(reader >> command)) { return false; }
     return true;
 }
 
+void TaskSchedule::setWorkerUsageFraction(float fraction)
+{
+    double dFraction = clamp<double>((double)fraction, 0.0, 1.0);
+    double fixedVal = dFraction * double(s_workerUsage_FixedPointMax);
+    workerUsage_FixedPoint = static_cast<decltype(workerUsage_FixedPoint)>(fixedVal);
+}
 
 void TaskSchedule::serialize(BlobStreamWriter& writer) const
 {
-    writer << affinities.size();
-    for (auto& affin : affinities) {
-        writer << affin;
+    writer << requiredResources.size();
+    for (auto& resource : requiredResources) {
+        writer << resource;
+    }
+    writer << optionalResources.size();
+    for (auto& resource : optionalResources) {
+        writer << resource;
     }
 }
 
@@ -254,9 +273,15 @@ bool TaskSchedule::deserialize(BlobStreamReader& reader)
     size_t count;
 
     if (!(reader >> count)) { return false; }
-    affinities.resize(count);
+    requiredResources.resize(count);
     for (size_t i = 0; i < count; ++i) {
-        if (!(reader >> affinities[i])) { return false; }
+        if (!(reader >> requiredResources[i])) { return false; }
+    }
+
+    if (!(reader >> count)) { return false; }
+    optionalResources.resize(count);
+    for (size_t i = 0; i < count; ++i) {
+        if (!(reader >> optionalResources[i])) { return false; }
     }
 
     return true;
@@ -265,10 +290,18 @@ bool TaskSchedule::deserialize(BlobStreamReader& reader)
 
 std::string TaskSchedule::toString() const
 {
-    std::string str = "Affinities = {";
-    for (size_t i = 0; i < affinities.size(); ++i) {
-        str += affinities[i].get();
-        if (i != affinities.size() - 1) {
+    std::string str = "RequiredResources = {";
+    for (size_t i = 0; i < requiredResources.size(); ++i) {
+        str += requiredResources[i].get();
+        if (i != requiredResources.size() - 1) {
+            str += ", ";
+        }
+    }
+    str += "}";
+    str += " OptionalResources = {";
+    for (size_t i = 0; i < optionalResources.size(); ++i) {
+        str += optionalResources[i].get();
+        if (i != optionalResources.size() - 1) {
             str += ", ";
         }
     }
@@ -310,10 +343,9 @@ void TaskStatus::serialize(BlobStreamWriter& writer) const
 {
     writer << createTime;
 
-    TaskRunStatus runStatusVal;
-    if (runStatus.tryGet(runStatusVal)) {
+    if (const auto* runStatusPtr = runStatus.ptrOrNull()) {
         writer << true;
-        runStatusVal.serialize(writer);
+        runStatusPtr->serialize(writer);
     }
     else {
         writer << false;

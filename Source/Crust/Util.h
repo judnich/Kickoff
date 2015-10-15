@@ -2,7 +2,7 @@
 #include <string>
 #include <cstdint>
 #include "Array.h"
-#include "Algebraic.h"
+#include "Optional.h"
 
 std::wstring stringToWstring(const std::string& s);
 
