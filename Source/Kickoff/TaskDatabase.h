@@ -13,13 +13,12 @@
 #include "Crust/FormattedText.h"
 
 
-class Task;
-typedef std::shared_ptr<Task> TaskPtr;
-typedef std::weak_ptr<Task> TaskWeakPtr;
-class TaskDatabase;
-
-
 typedef uint64_t TaskID;
+class Task;
+struct TaskSet;
+typedef std::shared_ptr<Task> TaskPtr;
+typedef std::shared_ptr<TaskID> TaskSetPtr;
+typedef std::weak_ptr<Task> TaskWeakPtr;
 
 
 // This encapsulates all the information on when/where to run a task
@@ -127,8 +126,6 @@ private:
 };
 
 
-typedef std::map<TaskID, TaskPtr> TasksByID;
-
 struct TaskStats
 {
     TaskStats();
@@ -137,6 +134,11 @@ struct TaskStats
     int numRunning;
     int numCanceling;
     uint64_t numFinished;
+};
+
+struct TaskSet
+{
+    std::set<TaskID> ids;
 };
 
 class TaskDatabase
@@ -148,7 +150,7 @@ public:
     TaskStats getStats() const { return m_stats; }
 
     TaskPtr createTask(const TaskCreateInfo& startInfo);
-    TaskPtr takeTaskToRun(const std::vector<std::string>& haveResources);
+    TaskPtr takeTaskToRun(const std::set<std::string>& haveResources);
     void heartbeatTask(TaskPtr task);
     void markTaskFinished(TaskPtr task); // this should be called whenever a running task finishes, whether or not it was canceled while it was running
     void markTaskShouldCancel(TaskPtr task);
@@ -161,10 +163,8 @@ private:
     TaskID getUnusedTaskID() const;
     bool cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeoutSeconds);
 
-    std::map<PooledString, std::set<TaskID>> m_readyTasksPerRequiredResource;
-    std::set<TaskID> m_readyTasksWithNoRequirements;
-
-    TasksByID m_allTasks;
+    std::set<TaskPtr> m_pendingTasks;
+    std::map<TaskID, TaskPtr> m_allTasksByID;
     TaskStats m_stats;
 };
 

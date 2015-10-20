@@ -1,6 +1,12 @@
 #include "TaskServer.h"
 #include "Crust/Array.h"
 #include "Crust/Error.h"
+#include <thread>
+#include <chrono>
+
+
+static const int MIN_TASK_POLL_MS = 1000;
+static const int MAX_TASK_POLL_MS = 60 * 1000;
 
 
 static zmq::message_t toMessage(ArrayView<uint8_t> bytes)
@@ -10,10 +16,12 @@ static zmq::message_t toMessage(ArrayView<uint8_t> bytes)
     return std::move(replyMsg);
 }
 
+
 static zmq::message_t toMessage(const BlobStreamWriter& writer)
 {
     return std::move(toMessage(writer.data()));
 }
+
 
 static ArrayView<uint8_t> viewMessage(const zmq::message_t& msg)
 {
@@ -36,6 +44,7 @@ TaskServer::TaskServer(int port)
     }
 }
 
+
 void TaskServer::processRequest()
 {
     // Get a request
@@ -53,6 +62,7 @@ void TaskServer::processRequest()
     // Send the reply
     m_responder.send(toMessage(reply));
 }
+
 
 void TaskServer::run()
 {
@@ -84,11 +94,13 @@ void TaskServer::run()
     }
 }
 
+
 void TaskServer::shutdown()
 {
     ColoredString("Shutting down server\n", TextColor::LightYellow).print();
     m_running = true;
 }
+
 
 BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
 {
@@ -219,10 +231,10 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
         }
 
         case TaskRequestType::TakeToRun: {
-            std::vector<std::string> haveResources;
+            std::set<std::string> haveResources;
             std::string resource;
             while (request >> resource) {
-                haveResources.push_back(resource);
+                haveResources.insert(resource);
             }
 
             auto task = m_db.takeTaskToRun(haveResources);
@@ -290,12 +302,14 @@ TaskClient::TaskClient(const std::string& ipStr, int port)
     }
 }
 
+
 TaskClient::TaskClient(TaskClient&& client)
     : m_context(std::move(client.m_context))
     , m_requester(std::move(client.m_requester))
 {
 
 }
+
 
 TaskClient::ReplyData TaskClient::getReplyToRequest(const BlobStreamWriter& request)
 {
@@ -314,6 +328,7 @@ TaskClient::ReplyData TaskClient::getReplyToRequest(const BlobStreamWriter& requ
     return std::move(replyData);
 }
 
+
 Optional<PooledString> TaskClient::getTaskCommand(TaskID id)
 {
     BlobStreamWriter request;
@@ -330,6 +345,7 @@ Optional<PooledString> TaskClient::getTaskCommand(TaskID id)
 
     return Nothing();
 }
+
 
 Optional<TaskSchedule> TaskClient::getTaskSchedule(TaskID id)
 {
@@ -348,6 +364,7 @@ Optional<TaskSchedule> TaskClient::getTaskSchedule(TaskID id)
     return Nothing();
 }
 
+
 Optional<TaskStatus> TaskClient::getTaskStatus(TaskID id)
 {
     BlobStreamWriter request;
@@ -365,6 +382,7 @@ Optional<TaskStatus> TaskClient::getTaskStatus(TaskID id)
     return Nothing();
 }
 
+
 Optional<bool> TaskClient::heartbeatAndCheckWasTaskCanceled(TaskID id)
 {
     BlobStreamWriter request;
@@ -381,6 +399,7 @@ Optional<bool> TaskClient::heartbeatAndCheckWasTaskCanceled(TaskID id)
 
     return Nothing();
 }
+
 
 Optional<std::vector<TaskBriefInfo>> TaskClient::getTasksByStates(const std::set<TaskState>& states)
 {
@@ -406,6 +425,7 @@ Optional<std::vector<TaskBriefInfo>> TaskClient::getTasksByStates(const std::set
     return tasks;
 }
 
+
 Optional<TaskStats> TaskClient::getStats()
 {
     BlobStreamWriter request;
@@ -420,6 +440,7 @@ Optional<TaskStats> TaskClient::getStats()
     }
     return Nothing();
 }
+
 
 Optional<TaskID> TaskClient::createTask(const TaskCreateInfo& startInfo)
 {
@@ -437,6 +458,7 @@ Optional<TaskID> TaskClient::createTask(const TaskCreateInfo& startInfo)
 
     return Nothing();
 }
+
 
 Optional<TaskRunInfo> TaskClient::takeTaskToRun(const std::vector<std::string>& haveResources)
 {
@@ -457,6 +479,7 @@ Optional<TaskRunInfo> TaskClient::takeTaskToRun(const std::vector<std::string>& 
     return Nothing();
 }
 
+
 bool TaskClient::markTaskFinished(TaskID task)
 {
     BlobStreamWriter request;
@@ -466,6 +489,7 @@ bool TaskClient::markTaskFinished(TaskID task)
     ReplyData reply = getReplyToRequest(request);
     return (reply.type == TaskReplyType::Success);
 }
+
 
 bool TaskClient::markTaskShouldCancel(TaskID task)
 {
@@ -477,12 +501,27 @@ bool TaskClient::markTaskShouldCancel(TaskID task)
     return (reply.type == TaskReplyType::Success);
 }
 
+
+void TaskClient::waitUntilTaskFinished(TaskID task)
+{
+    int pollIntervalMS = 0;
+    while (getTaskStatus(task).hasValue())
+    {
+        // While the task is not finished, sleep for a little bit before checking again (at slowly increasing intervals)
+        pollIntervalMS = clamp(pollIntervalMS, MIN_TASK_POLL_MS, MAX_TASK_POLL_MS);
+        std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMS));
+        pollIntervalMS = (pollIntervalMS + 1) + (pollIntervalMS / 4); // slow exponential slowdown
+    }
+}
+
+
 ServerStats::ServerStats()
     : succeededRequests(0)
     , failedRequests(0)
     , badRequests(0)
 {
 }
+
 
 ColoredString ServerStats::toColoredString() const
 {
@@ -494,11 +533,13 @@ ColoredString ServerStats::toColoredString() const
         ColoredString(" bad/corrupt.", TextColor::Red);
 }
 
+
 void TaskBriefInfo::serialize(BlobStreamWriter& writer) const
 {
     writer << id;
     writer << status;
 }
+
 
 bool TaskBriefInfo::deserialize(BlobStreamReader& reader)
 {
@@ -507,11 +548,13 @@ bool TaskBriefInfo::deserialize(BlobStreamReader& reader)
     return true;
 }
 
+
 void TaskRunInfo::serialize(BlobStreamWriter& writer) const
 {
     writer << id;
     writer << command;
 }
+
 
 bool TaskRunInfo::deserialize(BlobStreamReader& reader)
 {
@@ -519,3 +562,4 @@ bool TaskRunInfo::deserialize(BlobStreamReader& reader)
     if (!(reader >> command)) { return false; }
     return true;
 }
+

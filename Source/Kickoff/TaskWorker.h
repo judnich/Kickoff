@@ -14,6 +14,7 @@ public:
 
 private:
     bool tryRunOneTask();
+    void printResources();
 
     TaskClient& m_client;
     std::vector<std::string> m_resources;

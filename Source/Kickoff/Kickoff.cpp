@@ -13,6 +13,7 @@ static TextContainer::Ptr usageMessage(const std::string& args, TextColor colorA
     );
 }
 
+
 static TextContainer::Ptr helpMessage()
 {
     auto doc = TextContainer::make();
@@ -49,6 +50,7 @@ static TextContainer::Ptr helpMessage()
         "new <command to execute> [args] -server <database address>\n"
         "  -require <required resource tags separated by space or comma>\n"
         "  -want <optional resource tags separated by space or comma>\n");
+    *doc += usageMessage("wait <task id> [id 2] [...] -server <database address>");
     *doc += usageMessage("cancel <task id> -server <database address");
     *doc += usageMessage("info <task id> -server <database address>");
     *doc += usageMessage("list -server <database address>");
@@ -59,11 +61,13 @@ static TextContainer::Ptr helpMessage()
     return std::move(doc);
 }
 
+
 std::vector<std::string> parseResourceTags(const std::string& listStr)
 {
     std::vector<std::string> resourceTags = splitString(listStr, " ;,", false);
     return resourceTags;
 }
+
 
 std::vector<PooledString> toPooledStrings(std::vector<std::string>&& strings)
 {
@@ -75,11 +79,13 @@ std::vector<PooledString> toPooledStrings(std::vector<std::string>&& strings)
     return std::move(pooledStrings);
 }
 
+
 struct ServerAddress
 {
     std::string ip;
     int port;
 };
+
 
 ServerAddress parseConnectionString(const std::string& connectionStr, int defaultPort)
 {
@@ -168,6 +174,34 @@ int main(int argc, char* argv[])
 
         (ColoredString("Success! Canceled task: ", TextColor::Green) +
             ColoredString(toHexString(taskID), TextColor::LightGreen)).print();
+        return 0;
+    }
+    else if (command == "wait") {
+        auto address = parseConnectionString(args.expectOptionValue("server"), DEFAULT_TASK_SERVER_PORT);
+
+        std::vector<TaskID> taskIDs;
+        while (args.getUnnamedArgCount() > 0) {
+            auto taskIDStr = args.popUnnamedArg();
+            auto taskID = hexStringToUint64(taskIDStr).orFail("Failed to parse hexadecimal task ID: " + taskIDStr);
+            taskIDs.push_back(taskID);
+        }
+        if (taskIDs.empty()) {
+            fail("Expected at least one task to wait on");
+        }
+
+        TaskClient client(address.ip, address.port);
+
+        for (size_t i = 0; i < taskIDs.size(); ++i) {
+            auto taskID = taskIDs[i];
+
+            (ColoredString("[" + std::to_string(i+1) + "/" + std::to_string(taskIDs.size()) + "] ", TextColor::LightMagenta) +
+                ColoredString("Waiting for task: ", TextColor::Cyan) + 
+                ColoredString(toHexString(taskID) + "\n", TextColor::LightCyan)).print();
+
+            client.waitUntilTaskFinished(taskID);
+        }
+
+        ColoredString("Done!\n", TextColor::LightGreen).print();
         return 0;
     }
     else if (command == "info") {

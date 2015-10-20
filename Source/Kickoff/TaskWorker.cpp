@@ -21,9 +21,28 @@ TaskWorker::~TaskWorker()
 {
 }
 
+
+void TaskWorker::printResources()
+{
+    bool first = true;
+    for (const auto& resource : m_resources) {
+        if (!first) {
+            ColoredString(", ", TextColor::Cyan).print();
+        }
+        first = false;
+        ColoredString(resource, TextColor::LightCyan).print();
+    }
+    if (m_resources.empty()) {
+        ColoredString("[None]", TextColor::Cyan).print();
+    }
+}
+
+
 void TaskWorker::run()
 {
-    ColoredString("Starting worker.\n", TextColor::Cyan).print();
+    ColoredString("Starting worker with resources: ", TextColor::Cyan).print();
+    printResources();
+    printf("\n");
     m_running = true;
 
     int pollIntervalMS = 0;
@@ -32,7 +51,10 @@ void TaskWorker::run()
         if (tryRunOneTask())
         {
             pollIntervalMS = 0;
-            ColoredString("Requesting next task\n", TextColor::Cyan).print();
+
+            ColoredString("Requesting next task. Worker resources: ", TextColor::Cyan).print();
+            printResources();
+            printf("\n");
         }
         else
         {
@@ -46,11 +68,13 @@ void TaskWorker::run()
     }
 }
 
+
 void TaskWorker::shutdown()
 {
     ColoredString("Shutting down worker (will wait for running tasks to complete)\n", TextColor::LightYellow).print();
     m_running = false;
 }
+
 
 bool TaskWorker::tryRunOneTask()
 {

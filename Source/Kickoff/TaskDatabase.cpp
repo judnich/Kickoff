@@ -19,10 +19,12 @@ Task::Task(TaskID id, const TaskCreateInfo& startInfo)
     m_status.createTime = std::time(nullptr);
 }
 
+
 std::string Task::getHexID() const
 {
     return toHexString(ArrayView<uint8_t>(reinterpret_cast<const uint8_t*>(&m_id), sizeof(m_id)));
 }
+
 
 void Task::markStarted()
 {
@@ -35,6 +37,7 @@ void Task::markStarted()
     }
 }
 
+
 bool Task::markShouldCancel()
 {
     if (auto* runStatus = m_status.runStatus.ptrOrNull()) {
@@ -44,6 +47,7 @@ bool Task::markShouldCancel()
     return false;
 }
 
+
 void Task::heartbeat()
 {
     // Update a running task's heartbeat timestamp
@@ -52,19 +56,21 @@ void Task::heartbeat()
     }
 }
 
+
 TaskPtr TaskDatabase::getTaskByID(TaskID id) const
 {
-    auto it = m_allTasks.find(id);
-    if (it != m_allTasks.end()) {
+    auto it = m_allTasksByID.find(id);
+    if (it != m_allTasksByID.end()) {
         return it->second;
     }
     return TaskPtr();
 }
 
+
 std::vector<TaskPtr> TaskDatabase::getTasksByStates(const std::set<TaskState>& states) const
 {
     std::vector<TaskPtr> results;
-    for (const auto& entry : m_allTasks) {
+    for (const auto& entry : m_allTasksByID) {
         TaskPtr task = entry.second;
         if (states.find(task->getStatus().getState()) != states.end()) {
             results.push_back(task);
@@ -73,10 +79,12 @@ std::vector<TaskPtr> TaskDatabase::getTasksByStates(const std::set<TaskState>& s
     return std::move(results);
 }
 
+
 int TaskDatabase::getTotalTaskCount() const
 {
-    return (int)m_allTasks.size();
+    return (int)m_allTasksByID.size();
 }
+
 
 static uint64_t fastRand64()
 {
@@ -86,6 +94,7 @@ static uint64_t fastRand64()
     }
     return val;
 }
+
 
 TaskID TaskDatabase::getUnusedTaskID() const
 {
@@ -106,76 +115,78 @@ TaskID TaskDatabase::getUnusedTaskID() const
     return randID;
 }
 
+
 TaskPtr TaskDatabase::createTask(const TaskCreateInfo& info)
 {
     TaskID id = getUnusedTaskID();
     TaskPtr task = std::make_shared<Task>(id, info);
-    m_allTasks[id] = task;
-
-    for (const auto& resource : task->getSchedule().requiredResources) {
-        m_readyTasksPerRequiredResource[resource].insert(task->getID());
-    }
-    if (task->getSchedule().requiredResources.size() == 0)
-    {
-        m_readyTasksWithNoRequirements.insert(task->getID());
-    }
-
+    m_allTasksByID[id] = task;
+    m_pendingTasks.insert(task);
     m_stats.numPending++;
     return task;
 }
 
-TaskPtr TaskDatabase::takeTaskToRun(const std::vector<std::string>& haveResources)
+
+TaskPtr TaskDatabase::takeTaskToRun(const std::set<std::string>& haveResources)
 {
-    // Try each resource tag that could match one by one, starting at a random one. This randomness is necessary so
-    // that tasks don't end up being dequeued with a preference for alphabetical order in their resources.
-    Optional<TaskID> foundID;
-    if (haveResources.size() > 0)
-    {
-        int offset = rand() % (int)haveResources.size();
-        for (int i = 0; i < (int)haveResources.size(); ++i) {
-            const auto& resource = haveResources[(i + offset) % (int)haveResources.size()];
-            auto& readyTasks = m_readyTasksPerRequiredResource[resource];
-            if (!readyTasks.empty()) {
-                foundID = *readyTasks.begin();
+    // Choose the pending task with the highest "score", which represents what percentage of the optional resources the worker has
+    TaskPtr readyTask;
+    float bestScore = -1.0f;
+    for (const auto& task : m_pendingTasks) {
+        const auto& schedule = task->getSchedule();
+
+        // Must have all the required resources to even be considered
+        bool matchReq = true;
+        for (const auto& res : schedule.requiredResources) {
+            if (haveResources.find(res.get()) == haveResources.end()) {
+                matchReq = false;
                 break;
             }
-
-            i = (i + 1) % (int)haveResources.size();
         }
-    }
-    else
-    {
-        if (!m_readyTasksWithNoRequirements.empty()) {
-            foundID = *m_readyTasksWithNoRequirements.begin();
+
+        // Optimize for the most matching optional resources
+        if (matchReq) {
+            float score = 0.0f;
+            if (schedule.optionalResources.size() > 0) {
+                int matchCount = 0;
+                for (const auto& res : schedule.optionalResources) {
+                    if (haveResources.find(res.get()) != haveResources.end()) {
+                        matchCount++;
+                    }
+                }
+                score = float(matchCount) / float(schedule.optionalResources.size());
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                readyTask = task;
+
+                if (bestScore >= 0.999f) {
+                    break; // not really possible to get any better than this, so just break out of the search early
+                }
+            }
         }
     }
 
     // If a ready task was found, update its state
-    TaskPtr readyTask;
-    if (foundID.hasValue())
+    if (readyTask)
     {
-        readyTask = getTaskByID(foundID.orDefault());
-        assert(readyTask);
+        m_pendingTasks.erase(readyTask);
+        readyTask->markStarted();
 
         m_stats.numPending--;
         m_stats.numRunning++;
-
-        // Now that a ready task was found, remove it from the "ready tasks" sets
-        for (auto& readyTasks : m_readyTasksPerRequiredResource) {
-            readyTasks.second.erase(readyTask->getID());
-        }
-
-        // Then finally set it as running
-        readyTask->markStarted();
     }
 
     return readyTask;
 }
 
+
 void TaskDatabase::heartbeatTask(TaskPtr task)
 {
     return task->heartbeat();
 }
+
 
 void TaskDatabase::markTaskFinished(TaskPtr task)
 {
@@ -192,12 +203,10 @@ void TaskDatabase::markTaskFinished(TaskPtr task)
     }
     m_stats.numFinished++;
 
-    for (const auto& resource : task->getSchedule().requiredResources) {
-        m_readyTasksPerRequiredResource[resource].erase(task->getID());
-    }
-    m_readyTasksWithNoRequirements.erase(task->getID());
-    m_allTasks.erase(task->getID());
+    m_pendingTasks.erase(task);
+    m_allTasksByID.erase(task->getID());
 }
+
 
 void TaskDatabase::markTaskShouldCancel(TaskPtr task)
 {
@@ -210,13 +219,15 @@ void TaskDatabase::markTaskShouldCancel(TaskPtr task)
     }
 }
 
+
 void TaskDatabase::cleanupZombieTasks(std::time_t heartbeatTimeoutSeconds)
 {
-    for (auto item : m_allTasks) {
+    for (auto item : m_allTasksByID) {
         auto task = item.second;
         cleanupIfZombieTask(task, heartbeatTimeoutSeconds);
     }
 }
+
 
 bool TaskDatabase::cleanupIfZombieTask(TaskPtr task, std::time_t heartbeatTimeoutSeconds)
 {
@@ -256,6 +267,7 @@ void TaskSchedule::serialize(BlobStreamWriter& writer) const
         writer << resource;
     }
 }
+
 
 bool TaskSchedule::deserialize(BlobStreamReader& reader)
 {
@@ -298,11 +310,13 @@ std::string TaskSchedule::toString() const
     return str;
 }
 
+
 void TaskCreateInfo::serialize(BlobStreamWriter& writer) const
 {
     writer << command;
     writer << schedule;
 }
+
 
 bool TaskCreateInfo::deserialize(BlobStreamReader& reader)
 {
@@ -341,6 +355,7 @@ void TaskStatus::serialize(BlobStreamWriter& writer) const
     }
 }
 
+
 bool TaskStatus::deserialize(BlobStreamReader& reader)
 {
     if (!(reader >> createTime)) { return false; }
@@ -358,6 +373,7 @@ bool TaskStatus::deserialize(BlobStreamReader& reader)
 
     return true;
 }
+
 
 static std::string intervalToString(time_t interval)
 {
@@ -379,6 +395,7 @@ static std::string intervalToString(time_t interval)
         (std::to_string(seconds) + "s");
 }
 
+
 std::string toString(TaskState state)
 {
     if (state == TaskState::Pending) { return "Pending"; }
@@ -386,6 +403,7 @@ std::string toString(TaskState state)
     else if (state == TaskState::Canceling) { return "Canceling"; }
     return "<Invalid TaskState>";
 }
+
 
 std::string TaskStatus::toString() const
 {
