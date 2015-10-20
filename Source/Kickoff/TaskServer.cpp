@@ -79,6 +79,7 @@ void TaskServer::run()
 
         if (timeSinceLastCleanup >= SERVER_TASK_CLEANUP_INTERVAL_SECONDS) {
             m_db.cleanupZombieTasks(WORKER_HEARTBEAT_TIMEOUT_SECONDS);
+            lastCleanup = now;
         }
     }
 }
@@ -101,7 +102,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
     }
 
     switch (type) {
-        case TaskRequestType::GetExecutable: {
+        case TaskRequestType::GetCommand: {
             TaskID id;
             if (!(request >> id)) { break; }
             auto task = m_db.getTaskByID(id);
@@ -111,8 +112,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             }
             else {
                 reply << TaskReplyType::Success;
-                auto val = task->getExecutable();
-                reply << val;
+                reply << task->getCommand();
             }
             return reply;
         }
@@ -127,8 +127,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             }
             else {
                 reply << TaskReplyType::Success;
-                auto val = task->getSchedule();
-                reply << val;
+                reply << task->getSchedule();
             }
             return reply;
         }
@@ -143,8 +142,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             }
             else {
                 reply << TaskReplyType::Success;
-                auto status = task->getStatus();
-                reply << status;
+                reply << task->getStatus();
             }
             return reply;
         }
@@ -231,7 +229,7 @@ BlobStreamWriter TaskServer::generateReply(ArrayView<uint8_t> requestBytes)
             if (task) {
                 TaskRunInfo info;
                 info.id = task->getID();
-                info.executable = task->getExecutable();
+                info.command = task->getCommand();
 
                 reply << TaskReplyType::Success;
                 reply << info;
@@ -316,15 +314,15 @@ TaskClient::ReplyData TaskClient::getReplyToRequest(const BlobStreamWriter& requ
     return std::move(replyData);
 }
 
-Optional<TaskExecutable> TaskClient::getTaskExecutable(TaskID id)
+Optional<PooledString> TaskClient::getTaskCommand(TaskID id)
 {
     BlobStreamWriter request;
-    request << TaskRequestType::GetExecutable;
+    request << TaskRequestType::GetCommand;
     request << id;
 
     ReplyData reply = getReplyToRequest(request);
     if (reply.type == TaskReplyType::Success) {
-        TaskExecutable val;
+        PooledString val;
         if (reply.reader >> val) {
             return std::move(val);
         }
@@ -512,12 +510,12 @@ bool TaskBriefInfo::deserialize(BlobStreamReader& reader)
 void TaskRunInfo::serialize(BlobStreamWriter& writer) const
 {
     writer << id;
-    writer << executable;
+    writer << command;
 }
 
 bool TaskRunInfo::deserialize(BlobStreamReader& reader)
 {
     if (!(reader >> id)) { return false; }
-    if (!(reader >> executable)) { return false; }
+    if (!(reader >> command)) { return false; }
     return true;
 }

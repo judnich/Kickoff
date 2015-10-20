@@ -23,10 +23,10 @@ const int SERVER_TASK_CLEANUP_INTERVAL_SECONDS = 60;
 
 enum class TaskRequestType : uint8_t
 {
-    GetExecutable, GetSchedule, GetStatus,
+    GetCommand, GetSchedule, GetStatus,
     GetStats, GetTasksByStates,
     Create, TakeToRun, HeartbeatAndCheckWasTaskCanceled,
-    MarkFinished, MarkShouldCancel, Delete
+    MarkFinished, MarkShouldCancel
 };
 
 enum class TaskReplyType : uint8_t
@@ -62,7 +62,7 @@ inline bool operator>>(BlobStreamReader& reader, TaskBriefInfo& val) { return va
 struct TaskRunInfo
 {
     TaskID id;
-    TaskExecutable executable;
+    PooledString command;
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -98,7 +98,7 @@ public:
     TaskClient(const std::string& ipStr, int port);
     TaskClient(TaskClient&& client);
 
-    Optional<TaskExecutable> getTaskExecutable(TaskID id);
+    Optional<PooledString> getTaskCommand(TaskID id);
     Optional<TaskSchedule> getTaskSchedule(TaskID id);
     Optional<TaskStatus> getTaskStatus(TaskID id);
     Optional<bool> heartbeatAndCheckWasTaskCanceled(TaskID id);

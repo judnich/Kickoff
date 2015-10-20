@@ -22,31 +22,11 @@ class TaskDatabase;
 typedef uint64_t TaskID;
 
 
-// When a task is run, the command: "<interpreter> <script_file> <args>" will be executed,
-// where <script_file> is a file containing the provided script data blob.
-struct TaskExecutable
-{
-    PooledString command; // a command to run in the shell
-
-    void serialize(BlobStreamWriter& writer) const;
-    bool deserialize(BlobStreamReader& reader);
-};
-
-inline BlobStreamWriter& operator<<(BlobStreamWriter& writer, const TaskExecutable& val) { val.serialize(writer); return writer; }
-inline bool operator>>(BlobStreamReader& reader, TaskExecutable& val) { return val.deserialize(reader); }
-
-
 // This encapsulates all the information on when/where to run a task
 struct TaskSchedule
 {
     std::vector<PooledString> requiredResources; // required resource tags that workers must have to run this task
     std::vector<PooledString> optionalResources; // optional resource tags that workers are preferred to have to run this task
-
-    uint32_t workerUsage_FixedPoint;
-    const uint32_t s_workerUsage_FixedPointMax = 0xFFFF;
-
-    float getWorkerUsageFraction() const { return float(workerUsage_FixedPoint) / float(s_workerUsage_FixedPointMax); }
-    void setWorkerUsageFraction(float fraction);
 
     void serialize(BlobStreamWriter& writer) const;
     bool deserialize(BlobStreamReader& reader);
@@ -107,7 +87,7 @@ inline bool operator>>(BlobStreamReader& reader, TaskStatus& val) { return val.d
 // This is a simple structure to group together all the information needed to start a task
 struct TaskCreateInfo
 {
-    TaskExecutable executable;
+    PooledString command; // a command to run in the shell
     TaskSchedule schedule;
 
     void serialize(BlobStreamWriter& writer) const;
@@ -120,9 +100,7 @@ inline bool operator>>(BlobStreamReader& reader, TaskCreateInfo& val) { return v
 class TaskDB;
 
 
-// Main task class not only provides (private, shared only with TaskDatabase) methods to change task run state 
-// information, but tracks additional data about graph connectivity to enable knowing when a task becomes ready 
-// in constant time.
+// Provides methods (private, shared only with TaskDatabase) to change task run state information
 class Task : public std::enable_shared_from_this<Task>
 {
 public:
@@ -131,7 +109,7 @@ public:
     TaskID getID() const { return m_id; }
     std::string getHexID() const;
     
-    const TaskExecutable& getExecutable() const { return m_executable; }
+    const PooledString& getCommand() const { return m_command; }
     const TaskSchedule& getSchedule() const { return m_schedule; }
     const TaskStatus& getStatus() const { return m_status; }
 
@@ -139,7 +117,7 @@ private:
     friend class TaskDatabase;
 
     TaskID m_id;
-    TaskExecutable m_executable; // what to execute by the worker
+    PooledString m_command; // what to execute by the worker
     TaskSchedule m_schedule; // where and when to run the task
     TaskStatus m_status;
 

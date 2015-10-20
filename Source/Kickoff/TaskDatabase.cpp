@@ -6,13 +6,14 @@
 TaskStats::TaskStats()
     : numPending(0)
     , numRunning(0)
+    , numCanceling(0)
     , numFinished(0)
 {}
 
 
 Task::Task(TaskID id, const TaskCreateInfo& startInfo)
     : m_id(id)
-    , m_executable(startInfo.executable)
+    , m_command(startInfo.command)
     , m_schedule(startInfo.schedule)
 {
     m_status.createTime = std::time(nullptr);
@@ -185,8 +186,11 @@ void TaskDatabase::markTaskFinished(TaskPtr task)
         else {
             m_stats.numRunning--;
         }
-        m_stats.numFinished++;
     }
+    else {
+        m_stats.numPending--;
+    }
+    m_stats.numFinished++;
 
     for (const auto& resource : task->getSchedule().requiredResources) {
         m_readyTasksPerRequiredResource[resource].erase(task->getID());
@@ -199,7 +203,10 @@ void TaskDatabase::markTaskShouldCancel(TaskPtr task)
 {
     if (task->markShouldCancel()) {
         m_stats.numRunning--;
-        m_stats.numCanceling--;
+        m_stats.numCanceling++;
+    }
+    else {
+        markTaskFinished(task);
     }
 }
 
@@ -237,24 +244,6 @@ TaskState TaskStatus::getState() const
     }
 }
 
-
-void TaskExecutable::serialize(BlobStreamWriter& writer) const
-{
-    writer << command;
-}
-
-bool TaskExecutable::deserialize(BlobStreamReader& reader)
-{
-    if (!(reader >> command)) { return false; }
-    return true;
-}
-
-void TaskSchedule::setWorkerUsageFraction(float fraction)
-{
-    double dFraction = clamp<double>((double)fraction, 0.0, 1.0);
-    double fixedVal = dFraction * double(s_workerUsage_FixedPointMax);
-    workerUsage_FixedPoint = static_cast<decltype(workerUsage_FixedPoint)>(fixedVal);
-}
 
 void TaskSchedule::serialize(BlobStreamWriter& writer) const
 {
@@ -311,14 +300,14 @@ std::string TaskSchedule::toString() const
 
 void TaskCreateInfo::serialize(BlobStreamWriter& writer) const
 {
-    executable.serialize(writer);
-    schedule.serialize(writer);
+    writer << command;
+    writer << schedule;
 }
 
 bool TaskCreateInfo::deserialize(BlobStreamReader& reader)
 {
-    if (!executable.deserialize(reader)) { return false; }
-    if (!schedule.deserialize(reader)) { return false; }
+    if (!(reader >> command)) { return false; }
+    if (!(reader >> schedule)) { return false; }
     return true;
 }
 

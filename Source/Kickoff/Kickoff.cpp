@@ -145,7 +145,7 @@ int main(int argc, char* argv[])
         TaskCreateInfo info;
         info.schedule.requiredResources = toPooledStrings(parseResourceTags(args.getOptionValue("require")));
         info.schedule.optionalResources = toPooledStrings(parseResourceTags(args.getOptionValue("want")));
-        info.executable.command = command;
+        info.command = command;
 
         ColoredString("Creating task\n", TextColor::Cyan).print();
         auto result = client.createTask(info);
@@ -207,7 +207,8 @@ int main(int argc, char* argv[])
         states.insert(TaskState::Running);
         states.insert(TaskState::Canceling);
 
-        const auto& tasks = client.getTasksByStates(states).refOrFail(
+        auto optTasks = client.getTasksByStates(states);
+        const auto& tasks = optTasks.refOrFail(
                 "Task list is not available because the total number of tasks is too large. This command is meant "
                 "to be used as a debugging tool for small-scale deployments, not large scale clusters.");
 
@@ -241,7 +242,7 @@ int main(int argc, char* argv[])
 
         (ColoredString(std::to_string(stats.numPending), TextColor::LightCyan) + ColoredString(" tasks pending\n", TextColor::Cyan)).print();
         (ColoredString(std::to_string(stats.numRunning), TextColor::LightGreen) + ColoredString(" tasks running\n", TextColor::Green)).print();
-        (ColoredString(std::to_string(stats.numCanceling), TextColor::LightRed) + ColoredString(" tasks running\n", TextColor::Red)).print();
+        (ColoredString(std::to_string(stats.numCanceling), TextColor::LightRed) + ColoredString(" tasks canceling\n", TextColor::Red)).print();
         (ColoredString(std::to_string(stats.numFinished), TextColor::LightMagenta) + ColoredString(" tasks finished.\n", TextColor::Magenta)).print();
     }
     else if (command == "worker") {

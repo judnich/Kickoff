@@ -62,7 +62,7 @@ bool TaskWorker::tryRunOneTask()
     auto& runInfo = optRunInfo.refOrFail("Assert fail");
 
     ProcessStartInfo startInfo;
-    startInfo.commandStr = runInfo.executable.command.get();
+    startInfo.commandStr = runInfo.command.get();
     startInfo.workingDir = ".";
 
     ColoredString("Starting task " + toHexString(runInfo.id) + "\n", TextColor::Green).print();
